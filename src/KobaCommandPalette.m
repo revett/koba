@@ -1,4 +1,5 @@
 #import "KobaCommandPalette.h"
+#import "KobaColors.h"
 
 static const CGFloat KobaPaletteWidth = 600;
 static const CGFloat KobaPaletteRowHeight = 28;
@@ -31,9 +32,9 @@ static const NSInteger KobaPaletteMaxRows = 12;
     _query = [NSMutableString string];
 
     self.wantsLayer = YES;
-    self.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
+    self.layer.backgroundColor = KobaColorCardBackground().CGColor;
     self.layer.borderWidth = 1;
-    self.layer.borderColor = NSColor.separatorColor.CGColor;
+    self.layer.borderColor = KobaColorBorder().CGColor;
 
     [self applyFilter];
     return self;
@@ -95,7 +96,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
     NSTextField *query =
         [self labelWithString:hasQuery ? _query : @"Type to filter…"
                          font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
-                        color:hasQuery ? NSColor.labelColor : NSColor.tertiaryLabelColor];
+                        color:hasQuery ? KobaColorTextPrimary() : KobaColorTextMuted()];
     CGFloat queryY = NSHeight(self.bounds) - KobaPalettePadding - KobaPaletteRowHeight;
     query.frame = NSMakeRect(KobaPalettePadding + 8,
                              queryY + (KobaPaletteRowHeight - NSHeight(query.frame)) / 2,
@@ -118,7 +119,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
         NSTextField *empty =
             [self labelWithString:_titles.count == 0 ? @"No commands available" : @"No matches"
                              font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
-                            color:NSColor.tertiaryLabelColor];
+                            color:KobaColorTextMuted()];
         empty.frame = NSMakeRect(KobaPalettePadding + 8,
                                  queryY - KobaPaletteRowHeight +
                                  (KobaPaletteRowHeight - NSHeight(empty.frame)) / 2,
@@ -144,13 +145,13 @@ static const NSInteger KobaPaletteMaxRows = 12;
                        KobaPaletteWidth - 2 * KobaPalettePadding, KobaPaletteRowHeight)];
         rowView.wantsLayer = YES;
         rowView.layer.backgroundColor = selected
-            ? [NSColor.controlAccentColor colorWithAlphaComponent:0.2].CGColor
+            ? KobaColorSelectedFill().CGColor
             : NSColor.clearColor.CGColor;
 
         NSTextField *label =
             [self labelWithString:title
                              font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
-                            color:selected ? NSColor.labelColor : NSColor.secondaryLabelColor];
+                            color:selected ? KobaColorTextPrimary() : KobaColorTextSecondary()];
         label.frame = NSMakeRect(8, (KobaPaletteRowHeight - NSHeight(label.frame)) / 2,
                                  NSWidth(rowView.bounds) - 16, NSHeight(label.frame));
         [rowView addSubview:label];

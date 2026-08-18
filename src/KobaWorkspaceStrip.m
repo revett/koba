@@ -1,4 +1,5 @@
 #import "KobaWorkspaceStrip.h"
+#import "KobaColors.h"
 
 static const CGFloat KobaCardWidth = 120;
 // 8pt inset top and bottom, a 14pt "#N" line, then three 13pt lines with
@@ -72,16 +73,16 @@ static const CGFloat KobaCardTextInset = 8;
         card.wantsLayer = YES;
         card.layer.borderWidth = selected ? 2 : 1;
         card.layer.borderColor = selected
-            ? NSColor.controlAccentColor.CGColor
-            : NSColor.separatorColor.CGColor;
+            ? KobaColorSelectedBorder().CGColor
+            : KobaColorBorder().CGColor;
         card.layer.backgroundColor = selected
-            ? [NSColor.controlAccentColor colorWithAlphaComponent:0.1].CGColor
+            ? KobaColorSelectedFill().CGColor
             : NSColor.clearColor.CGColor;
 
         NSTextField *number =
             [self cardLabel:[NSString stringWithFormat:@"#%ld", (long)(i + 1)]
                        font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightSemibold]
-                      color:selected ? NSColor.labelColor : NSColor.secondaryLabelColor
+                      color:selected ? KobaColorTextPrimary() : KobaColorTextSecondary()
                        topY:KobaCardHeight - KobaCardTextInset];
         [card addSubview:number];
 
@@ -90,7 +91,7 @@ static const CGFloat KobaCardTextInset = 8;
             NSTextField *label =
                 [self cardLabel:line
                            font:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular]
-                          color:selected ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor
+                          color:selected ? KobaColorTextSecondary() : KobaColorTextMuted()
                            topY:topY];
             [card addSubview:label];
             topY = NSMinY(label.frame) - 3;

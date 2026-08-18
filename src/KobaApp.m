@@ -1,4 +1,5 @@
 #import "KobaApp.h"
+#import "KobaColors.h"
 #import "KobaCommandPalette.h"
 #import "KobaConfig.h"
 #import "KobaSurfaceView.h"
@@ -372,6 +373,11 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     _window.delegate = self;
     _window.tabbingMode = NSWindowTabbingModeDisallowed;
 
+    // The chrome palette is dark-only stone; pin the appearance so system
+    // drawn parts (titlebar) match.
+    _window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    _window.backgroundColor = KobaColorAppBackground();
+
     NSView *content = [[NSView alloc] initWithFrame:frame];
 
     _strip = [[KobaWorkspaceStrip alloc]
@@ -709,13 +715,14 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         }];
     }
 
-    [self presentPaletteWithTitles:titles actions:actions note:nil mandatory:NO];
+    [self presentPaletteWithTitles:titles actions:actions note:nil mandatory:NO blank:NO];
 }
 
 - (void)presentPaletteWithTitles:(NSArray<NSString *> *)titles
                          actions:(NSArray<void (^)(void)> *)actions
                             note:(NSAttributedString *)note
-                       mandatory:(BOOL)mandatory {
+                       mandatory:(BOOL)mandatory
+                           blank:(BOOL)blank {
     _paletteActions = actions;
     _paletteMandatory = mandatory;
     _palette = [[KobaCommandPalette alloc] initWithCommands:titles note:note];
@@ -724,7 +731,11 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     NSView *overlay = [[NSView alloc] initWithFrame:content.bounds];
     overlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     overlay.wantsLayer = YES;
-    overlay.layer.backgroundColor = [NSColor colorWithWhite:0 alpha:0.45].CGColor;
+    // The repo picker fully hides the workspace behind it (the card floats
+    // on the app background); the command palette just dims what's behind.
+    overlay.layer.backgroundColor = blank
+        ? KobaColorAppBackground().CGColor
+        : KobaColorScrim().CGColor;
 
     NSRect paletteFrame = _palette.frame;
     _palette.frame = NSMakeRect(
@@ -780,7 +791,7 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
                 attributes:@{
                     NSFontAttributeName :
                         [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
-                    NSForegroundColorAttributeName : NSColor.systemOrangeColor,
+                    NSForegroundColorAttributeName : KobaColorWarning(),
                 }];
         [warning addAttributes:@{
             NSFontAttributeName :
@@ -798,7 +809,7 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         }
     }
 
-    [self presentPaletteWithTitles:titles actions:actions note:note mandatory:mandatory];
+    [self presentPaletteWithTitles:titles actions:actions note:note mandatory:mandatory blank:YES];
 }
 
 #pragma mark - Keybindings overlay
@@ -834,7 +845,7 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     NSView *overlay = [[NSView alloc] initWithFrame:content.bounds];
     overlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     overlay.wantsLayer = YES;
-    overlay.layer.backgroundColor = [NSColor colorWithWhite:0 alpha:0.45].CGColor;
+    overlay.layer.backgroundColor = KobaColorScrim().CGColor;
 
     NSView *card = [[NSView alloc] initWithFrame:
         NSMakeRect(floor((NSWidth(content.bounds) - cardWidth) / 2),
@@ -843,13 +854,13 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     card.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin |
                             NSViewMinYMargin | NSViewMaxYMargin;
     card.wantsLayer = YES;
-    card.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
+    card.layer.backgroundColor = KobaColorCardBackground().CGColor;
     card.layer.borderWidth = 1;
-    card.layer.borderColor = NSColor.separatorColor.CGColor;
+    card.layer.borderColor = KobaColorBorder().CGColor;
 
     NSTextField *title = [NSTextField labelWithString:@"Keybindings"];
     title.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightSemibold];
-    title.textColor = NSColor.labelColor;
+    title.textColor = KobaColorTextPrimary();
     [title sizeToFit];
     title.frame = NSMakeRect(padding, cardHeight - padding - titleHeight,
                              cardWidth - 2 * padding, titleHeight);
@@ -860,13 +871,13 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
 
         NSTextField *key = [NSTextField labelWithString:bindings[i][0]];
         key.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightSemibold];
-        key.textColor = NSColor.labelColor;
+        key.textColor = KobaColorTextPrimary();
         key.frame = NSMakeRect(padding, y, 130, rowHeight);
         [card addSubview:key];
 
         NSTextField *desc = [NSTextField labelWithString:bindings[i][1]];
         desc.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
-        desc.textColor = NSColor.secondaryLabelColor;
+        desc.textColor = KobaColorTextSecondary();
         desc.frame = NSMakeRect(padding + 140, y, cardWidth - padding - 140, rowHeight);
         [card addSubview:desc];
     }

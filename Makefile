@@ -17,9 +17,9 @@ BIN := $(APP)/Contents/MacOS/koba
 SRCS := src/main.m src/KobaApp.m src/KobaCommandPalette.m src/KobaConfig.m \
 	src/KobaSplitView.m src/KobaSurfaceView.m src/KobaWorkspace.m \
 	src/KobaWorkspaceStrip.m
-HDRS := src/KobaApp.h src/KobaCommandPalette.h src/KobaConfig.h \
-	src/KobaSplitView.h src/KobaSurfaceView.h src/KobaWorkspace.h \
-	src/KobaWorkspaceStrip.h
+HDRS := src/KobaApp.h src/KobaColors.h src/KobaCommandPalette.h \
+	src/KobaConfig.h src/KobaSplitView.h src/KobaSurfaceView.h \
+	src/KobaWorkspace.h src/KobaWorkspaceStrip.h
 
 CFLAGS := -fobjc-arc -Wall -Wextra -Wno-unused-parameter -g -I$(GHOSTTY_OUT)/include
 FRAMEWORKS := -framework Cocoa -framework CoreText -framework Metal \
