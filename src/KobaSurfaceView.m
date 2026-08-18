@@ -30,6 +30,9 @@ static int KobaMomentum(NSEventPhase phase) {
     }
 }
 
+// Unfocused panes are faded so the focused pane is obvious at a glance.
+static const CGFloat KobaUnfocusedPaneAlpha = 0.7;
+
 @implementation KobaSurfaceView {
     BOOL _focused;
 }
@@ -60,6 +63,7 @@ static int KobaMomentum(NSEventPhase phase) {
     // Surfaces start focused inside ghostty; unfocus so only the pane that
     // actually becomes first responder shows a blinking cursor.
     ghostty_surface_set_focus(_surface, false);
+    self.alphaValue = KobaUnfocusedPaneAlpha;
 
     return self;
 }
@@ -107,6 +111,7 @@ static int KobaMomentum(NSEventPhase phase) {
     if (focused == _focused) return;
     _focused = focused;
     ghostty_surface_set_focus(_surface, focused);
+    self.alphaValue = focused ? 1.0 : KobaUnfocusedPaneAlpha;
 }
 
 #pragma mark - Geometry
