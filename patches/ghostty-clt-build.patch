@@ -1,0 +1,91 @@
+diff --git a/build.zig b/build.zig
+index f9d861b..fe7dfd8 100644
+--- a/build.zig
++++ b/build.zig
+@@ -142,12 +142,23 @@ pub fn build(b: *std.Build) !void {
+             libghostty_shared.installHeader(); // Only need one header
+             libghostty_shared.install("libghostty.so");
+             libghostty_static.install("libghostty.a");
++        } else {
++            libghostty_static.installHeader();
++            libghostty_static.install("libghostty.a");
++
++            // Terminal runtime resources (terminfo, shell integration, themes)
++            // that the embedding app points GHOSTTY_RESOURCES_DIR at.
++            resources.install();
+         }
+     }
+ 
+     // macOS only artifacts. These will error if they're initialized for
+     // other targets.
+-    if (config.target.result.os.tag.isDarwin()) {
++    //
++    // CLT-only build: also skip when the xcframework isn't emitted, since
++    // initializing it eagerly resolves iOS lazy dependencies and requires
++    // full Xcode to package.
++    if (config.target.result.os.tag.isDarwin() and config.emit_xcframework) {
+         // Ghostty xcframework
+         const xcframework = try buildpkg.GhosttyXCFramework.init(
+             b,
+@@ -202,7 +213,7 @@ pub fn build(b: *std.Build) !void {
+ 
+         // On macOS we can run the macOS app. For "run" we always force
+         // a native-only build so that we can run as quickly as possible.
+-        if (config.target.result.os.tag.isDarwin()) {
++        if (config.target.result.os.tag.isDarwin() and config.emit_xcframework) {
+             const xcframework_native = try buildpkg.GhosttyXCFramework.init(
+                 b,
+                 &deps,
+diff --git a/src/build/SharedDeps.zig b/src/build/SharedDeps.zig
+index 9276c99..e282eee 100644
+--- a/src/build/SharedDeps.zig
++++ b/src/build/SharedDeps.zig
+@@ -380,10 +380,11 @@ pub fn add(
+     if (step.rootModuleTarget().os.tag.isDarwin()) {
+         try @import("apple_sdk").addPaths(b, step);
+ 
+-        const metallib = self.metallib.?;
+-        metallib.output.addStepDependencies(&step.step);
++        // CLT-only build: embed the Metal shader source instead of a
++        // precompiled metallib (compiling one requires full Xcode). The
++        // renderer compiles it at runtime via newLibraryWithSource.
+         step.root_module.addAnonymousImport("ghostty_metallib", .{
+-            .root_source_file = metallib.output,
++            .root_source_file = b.path("src/renderer/shaders/shaders.metal"),
+         });
+     }
+ 
+diff --git a/src/renderer/metal/shaders.zig b/src/renderer/metal/shaders.zig
+index 0be0235..2db8a64 100644
+--- a/src/renderer/metal/shaders.zig
++++ b/src/renderer/metal/shaders.zig
+@@ -334,21 +334,20 @@ pub const BgImage = extern struct {
+ fn initLibrary(device: objc.Object) !objc.Object {
+     const start = try std.time.Instant.now();
+ 
+-    const data = try macos.dispatch.Data.create(
++    // CLT-only build: ghostty_metallib contains Metal shader source, not a
++    // precompiled metallib, so compile it at runtime.
++    const source = try macos.foundation.String.createWithBytes(
+         @embedFile("ghostty_metallib"),
+-        macos.dispatch.queue.getMain(),
+-        macos.dispatch.Data.DESTRUCTOR_DEFAULT,
++        .utf8,
++        false,
+     );
+-    defer data.release();
++    defer source.release();
+ 
+     var err: ?*anyopaque = null;
+     const library = device.msgSend(
+         objc.Object,
+-        objc.sel("newLibraryWithData:error:"),
+-        .{
+-            data,
+-            &err,
+-        },
++        objc.sel("newLibraryWithSource:options:error:"),
++        .{ source, @as(?*anyopaque, null), &err },
+     );
+     try checkError(err);
+ 

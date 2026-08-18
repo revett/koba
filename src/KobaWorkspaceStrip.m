@@ -1,0 +1,105 @@
+#import "KobaWorkspaceStrip.h"
+
+static const CGFloat KobaCardWidth = 120;
+// 8pt inset top and bottom, a 14pt "#N" line, then three 13pt lines with
+// 3pt gaps: 8 + 14 + 3*(3 + 13) + 8 = 78.
+static const CGFloat KobaCardHeight = 78;
+static const CGFloat KobaCardSpacing = 8;
+static const CGFloat KobaStripPadding = 10;
+static const CGFloat KobaCardTextInset = 8;
+
+@implementation KobaWorkspaceStrip {
+    NSArray<NSArray<NSString *> *> *_lines;
+    NSInteger _selectedIndex;
+}
+
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (!self) return nil;
+    _lines = @[];
+    _selectedIndex = -1;
+    return self;
+}
+
+- (void)updateWithLines:(NSArray<NSArray<NSString *> *> *)lines
+          selectedIndex:(NSInteger)selectedIndex {
+    _lines = [lines copy];
+    _selectedIndex = selectedIndex;
+    [self rebuildCards];
+}
+
+- (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
+    [self rebuildCards];
+}
+
+// Cards overflowing the strip are shifted left just enough to keep the
+// selected card fully visible; navigation is keyboard driven, so there is
+// no scrollbar.
+- (CGFloat)shiftForSelectedCard {
+    if (_selectedIndex < 0) return 0;
+    CGFloat cardX = KobaStripPadding + _selectedIndex * (KobaCardWidth + KobaCardSpacing);
+    CGFloat overflow = cardX + KobaCardWidth + KobaStripPadding - NSWidth(self.bounds);
+    return MAX(0, MIN(overflow, cardX - KobaStripPadding));
+}
+
+- (NSTextField *)cardLabel:(NSString *)text
+                      font:(NSFont *)font
+                     color:(NSColor *)color
+                      topY:(CGFloat)topY {
+    NSTextField *label = [NSTextField labelWithString:text];
+    label.font = font;
+    label.textColor = color;
+    label.alignment = NSTextAlignmentLeft;
+    label.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    [label sizeToFit];
+    label.frame = NSMakeRect(KobaCardTextInset, topY - NSHeight(label.frame),
+                             KobaCardWidth - 2 * KobaCardTextInset,
+                             NSHeight(label.frame));
+    return label;
+}
+
+- (void)rebuildCards {
+    [self.subviews.copy makeObjectsPerformSelector:@selector(removeFromSuperview)];
+
+    CGFloat shift = [self shiftForSelectedCard];
+    CGFloat y = (NSHeight(self.bounds) - KobaCardHeight) / 2;
+    for (NSInteger i = 0; i < (NSInteger)_lines.count; i++) {
+        BOOL selected = (i == _selectedIndex);
+
+        NSView *card = [[NSView alloc] initWithFrame:
+            NSMakeRect(KobaStripPadding + i * (KobaCardWidth + KobaCardSpacing) - shift, y,
+                       KobaCardWidth, KobaCardHeight)];
+        card.wantsLayer = YES;
+        card.layer.borderWidth = selected ? 2 : 1;
+        card.layer.borderColor = selected
+            ? NSColor.controlAccentColor.CGColor
+            : NSColor.separatorColor.CGColor;
+        card.layer.backgroundColor = selected
+            ? [NSColor.controlAccentColor colorWithAlphaComponent:0.1].CGColor
+            : NSColor.clearColor.CGColor;
+
+        NSTextField *number =
+            [self cardLabel:[NSString stringWithFormat:@"#%ld", (long)(i + 1)]
+                       font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightSemibold]
+                      color:selected ? NSColor.labelColor : NSColor.secondaryLabelColor
+                       topY:KobaCardHeight - KobaCardTextInset];
+        [card addSubview:number];
+
+        CGFloat topY = NSMinY(number.frame) - 3;
+        for (NSString *line in _lines[(NSUInteger)i]) {
+            NSTextField *label =
+                [self cardLabel:line
+                           font:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular]
+                          color:selected ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor
+                           topY:topY];
+            [card addSubview:label];
+            topY = NSMinY(label.frame) - 3;
+        }
+
+        [self addSubview:card];
+    }
+
+    self.needsDisplay = YES;
+}
+
+@end
