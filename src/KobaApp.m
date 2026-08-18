@@ -187,6 +187,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     NSView *_paletteOverlay;
     KobaCommandPalette *_palette;
     NSArray<void (^)(void)> *_paletteActions;
+    void (^_paletteInputHandler)(NSString *);
     BOOL _paletteMandatory;
     KobaConfig *_kobaConfig;
 }
@@ -262,6 +263,13 @@ static void koba_close_surface(void *userdata, bool processAlive) {
                 case kVK_UpArrow: [self->_palette moveSelection:-1]; break;
                 case kVK_Return:
                 case kVK_ANSI_KeypadEnter: {
+                    if (self->_paletteInputHandler != nil) {
+                        void (^handler)(NSString *) = self->_paletteInputHandler;
+                        NSString *text = self->_palette.query;
+                        [self dismissPalette];
+                        handler(text);
+                        break;
+                    }
                     NSInteger index = self->_palette.selectedIndex;
                     NSArray<void (^)(void)> *actions = self->_paletteActions;
                     [self dismissPalette];
@@ -487,15 +495,21 @@ static void koba_close_surface(void *userdata, bool processAlive) {
 }
 
 - (void)refreshStrip {
+    NSMutableArray<NSString *> *topLines = [NSMutableArray array];
     NSMutableArray<NSArray<NSString *> *> *lines = [NSMutableArray array];
-    for (KobaWorkspace *workspace in _workspaces) {
+    for (NSUInteger i = 0; i < _workspaces.count; i++) {
+        KobaWorkspace *workspace = _workspaces[i];
+        [topLines addObject:workspace.customTitle != nil
+            ? [NSString stringWithFormat:@"#%lu %@", i + 1, workspace.customTitle]
+            : [NSString stringWithFormat:@"#%lu", i + 1]];
+
         NSMutableArray<NSString *> *cardLines =
             [NSMutableArray arrayWithObject:workspace.directoryLabel];
         if (workspace.ticketLabel != nil) [cardLines addObject:workspace.ticketLabel];
         if (workspace.prLabel != nil) [cardLines addObject:workspace.prLabel];
         [lines addObject:cardLines];
     }
-    [_strip updateWithLines:lines selectedIndex:_selectedIndex];
+    [_strip updateWithTopLines:topLines lines:lines selectedIndex:_selectedIndex];
 }
 
 #pragma mark - GitHub PR lookups
@@ -654,6 +668,7 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     _paletteOverlay = nil;
     _palette = nil;
     _paletteActions = nil;
+    _paletteInputHandler = nil;
     _paletteMandatory = NO;
 }
 
@@ -691,6 +706,11 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         }];
     }];
 
+    [titles addObject:@"Workspace → Amend Title"];
+    [actions addObject:^{
+        [self showAmendTitleInput];
+    }];
+
     // Resetting the Agent pane is only offered from the Agent pane itself,
     // and only when it has drifted from the Terminal pane's directory.
     KobaWorkspace *workspace = [self selectedWorkspace];
@@ -724,8 +744,14 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
                        mandatory:(BOOL)mandatory
                            blank:(BOOL)blank {
     _paletteActions = actions;
-    _paletteMandatory = mandatory;
     _palette = [[KobaCommandPalette alloc] initWithCommands:titles note:note];
+    [self mountPalette:_palette mandatory:mandatory blank:blank];
+}
+
+- (void)mountPalette:(KobaCommandPalette *)palette
+           mandatory:(BOOL)mandatory
+               blank:(BOOL)blank {
+    _paletteMandatory = mandatory;
 
     NSView *content = _window.contentView;
     NSView *overlay = [[NSView alloc] initWithFrame:content.bounds];
@@ -748,6 +774,34 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     [overlay addSubview:_palette];
     [content addSubview:overlay];
     _paletteOverlay = overlay;
+}
+
+// Fits on the card's top line next to "#N".
+static const NSInteger KobaWorkspaceTitleMaxLength = 11;
+
+- (void)showAmendTitleInput {
+    KobaWorkspace *workspace = [self selectedWorkspace];
+    if (workspace == nil) return;
+
+    NSAttributedString *note = [[NSAttributedString alloc]
+        initWithString:[NSString stringWithFormat:@"Max %ld characters, empty clears the title",
+                        (long)KobaWorkspaceTitleMaxLength]
+            attributes:@{
+                NSFontAttributeName :
+                    [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
+                NSForegroundColorAttributeName : KobaColorTextMuted(),
+            }];
+
+    _palette = [[KobaCommandPalette alloc]
+        initForTextInputWithPlaceholder:@"Workspace title…"
+                                   note:note
+                              maxLength:KobaWorkspaceTitleMaxLength];
+    if (workspace.customTitle != nil) [_palette appendQuery:workspace.customTitle];
+    _paletteInputHandler = ^(NSString *text) {
+        workspace.customTitle = text.length > 0 ? text : nil;
+        [(KobaApp *)NSApp.delegate refreshStrip];
+    };
+    [self mountPalette:_palette mandatory:NO blank:NO];
 }
 
 #pragma mark - Repo picker

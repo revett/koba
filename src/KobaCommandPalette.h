@@ -18,6 +18,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithCommands:(NSArray<NSString *> *)titles
                             note:(nullable NSAttributedString *)note;
 
+// A text-input palette: no command rows, just the query line (which becomes
+// the entered text) and an optional note. maxLength of 0 means unlimited.
+- (instancetype)initForTextInputWithPlaceholder:(NSString *)placeholder
+                                           note:(nullable NSAttributedString *)note
+                                      maxLength:(NSInteger)maxLength;
+
+// The current query / entered text.
+@property (nonatomic, readonly) NSString *query;
+
 - (void)moveSelection:(NSInteger)delta;
 
 // Type-to-filter: case-insensitive substring match against the titles.

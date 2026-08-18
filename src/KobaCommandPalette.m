@@ -9,9 +9,12 @@ static const NSInteger KobaPaletteMaxRows = 12;
 @implementation KobaCommandPalette {
     NSArray<NSString *> *_titles;
     NSAttributedString *_note;
+    NSString *_placeholder;
     NSMutableString *_query;
     NSArray<NSNumber *> *_filtered;  // indices into _titles
     NSInteger _selectedRow;          // index into _filtered
+    BOOL _textInput;
+    NSInteger _maxLength;
 }
 
 - (instancetype)initWithCommands:(NSArray<NSString *> *)titles {
@@ -21,6 +24,31 @@ static const NSInteger KobaPaletteMaxRows = 12;
 - (instancetype)initWithCommands:(NSArray<NSString *> *)titles
                             note:(NSAttributedString *)note {
     NSInteger rows = MIN(MAX((NSInteger)titles.count, 1), KobaPaletteMaxRows);
+    return [self initWithTitles:titles
+                           note:note
+                    placeholder:@"Type to filter…"
+                      textInput:NO
+                      maxLength:0
+                           rows:rows];
+}
+
+- (instancetype)initForTextInputWithPlaceholder:(NSString *)placeholder
+                                           note:(NSAttributedString *)note
+                                      maxLength:(NSInteger)maxLength {
+    return [self initWithTitles:@[]
+                           note:note
+                    placeholder:placeholder
+                      textInput:YES
+                      maxLength:maxLength
+                           rows:0];
+}
+
+- (instancetype)initWithTitles:(NSArray<NSString *> *)titles
+                          note:(NSAttributedString *)note
+                   placeholder:(NSString *)placeholder
+                     textInput:(BOOL)textInput
+                     maxLength:(NSInteger)maxLength
+                          rows:(NSInteger)rows {
     CGFloat noteHeight = note != nil ? 22 : 0;
     self = [super initWithFrame:NSMakeRect(0, 0, KobaPaletteWidth,
                                            (rows + 1) * KobaPaletteRowHeight +
@@ -29,6 +57,9 @@ static const NSInteger KobaPaletteMaxRows = 12;
 
     _titles = [titles copy];
     _note = [note copy];
+    _placeholder = [placeholder copy];
+    _textInput = textInput;
+    _maxLength = maxLength;
     _query = [NSMutableString string];
 
     self.wantsLayer = YES;
@@ -38,6 +69,10 @@ static const NSInteger KobaPaletteMaxRows = 12;
 
     [self applyFilter];
     return self;
+}
+
+- (NSString *)query {
+    return [_query copy];
 }
 
 - (NSInteger)selectedIndex {
@@ -54,6 +89,10 @@ static const NSInteger KobaPaletteMaxRows = 12;
 
 - (void)appendQuery:(NSString *)text {
     [_query appendString:text];
+    if (_maxLength > 0 && (NSInteger)_query.length > _maxLength) {
+        [_query deleteCharactersInRange:
+            NSMakeRange((NSUInteger)_maxLength, _query.length - (NSUInteger)_maxLength)];
+    }
     [self applyFilter];
 }
 
@@ -94,7 +133,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
     // Query line at the top.
     BOOL hasQuery = _query.length > 0;
     NSTextField *query =
-        [self labelWithString:hasQuery ? _query : @"Type to filter…"
+        [self labelWithString:hasQuery ? _query : _placeholder
                          font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
                         color:hasQuery ? KobaColorTextPrimary() : KobaColorTextMuted()];
     CGFloat queryY = NSHeight(self.bounds) - KobaPalettePadding - KobaPaletteRowHeight;
@@ -114,6 +153,9 @@ static const NSInteger KobaPaletteMaxRows = 12;
                                 NSHeight(note.frame));
         [self addSubview:note];
     }
+
+    // Text-input mode is just the query line and the note.
+    if (_textInput) return;
 
     if (_filtered.count == 0) {
         NSTextField *empty =

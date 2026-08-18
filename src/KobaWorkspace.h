@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) KobaSurfaceView *agentPane;
 @property (nonatomic, weak) KobaSurfaceView *focusedPane;
 
+// User-set title shown after "#N" on the workspace card's top line.
+@property (nonatomic, copy, nullable) NSString *customTitle;
+
 // Ticket key detected in the current branch name (e.g. "ABC-123").
 @property (nonatomic, copy, nullable) NSString *ticketLabel;
 

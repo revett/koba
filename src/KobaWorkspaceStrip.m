@@ -10,6 +10,7 @@ static const CGFloat KobaStripPadding = 10;
 static const CGFloat KobaCardTextInset = 8;
 
 @implementation KobaWorkspaceStrip {
+    NSArray<NSString *> *_topLines;
     NSArray<NSArray<NSString *> *> *_lines;
     NSInteger _selectedIndex;
 }
@@ -17,13 +18,16 @@ static const CGFloat KobaCardTextInset = 8;
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return nil;
+    _topLines = @[];
     _lines = @[];
     _selectedIndex = -1;
     return self;
 }
 
-- (void)updateWithLines:(NSArray<NSArray<NSString *> *> *)lines
-          selectedIndex:(NSInteger)selectedIndex {
+- (void)updateWithTopLines:(NSArray<NSString *> *)topLines
+                     lines:(NSArray<NSArray<NSString *> *> *)lines
+             selectedIndex:(NSInteger)selectedIndex {
+    _topLines = [topLines copy];
     _lines = [lines copy];
     _selectedIndex = selectedIndex;
     [self rebuildCards];
@@ -80,8 +84,8 @@ static const CGFloat KobaCardTextInset = 8;
             : NSColor.clearColor.CGColor;
 
         NSTextField *number =
-            [self cardLabel:[NSString stringWithFormat:@"#%ld", (long)(i + 1)]
-                       font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightSemibold]
+            [self cardLabel:_topLines[(NSUInteger)i]
+                       font:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]
                       color:selected ? KobaColorTextPrimary() : KobaColorTextSecondary()
                        topY:KobaCardHeight - KobaCardTextInset];
         [card addSubview:number];
