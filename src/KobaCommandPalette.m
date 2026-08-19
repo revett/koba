@@ -94,7 +94,12 @@ static const NSInteger KobaPaletteMaxRows = 12;
 - (void)moveSelection:(NSInteger)delta {
     NSInteger count = (NSInteger)_filtered.count;
     if (count == 0) return;
-    _selectedRow = (_selectedRow + delta + count) % count;
+    if (_selectedRow < 0) {
+        // Nothing selected yet: down selects the first row, up the last.
+        _selectedRow = delta > 0 ? 0 : count - 1;
+    } else {
+        _selectedRow = (_selectedRow + delta + count) % count;
+    }
     [self rebuildRows];
 }
 
@@ -123,7 +128,9 @@ static const NSInteger KobaPaletteMaxRows = 12;
         }
     }
     _filtered = filtered;
-    _selectedRow = filtered.count > 0 ? 0 : -1;
+    // Nothing is selected until the user acts: arrow keys select, and a
+    // typed filter auto-selects its first match so enter works immediately.
+    _selectedRow = (_query.length > 0 && filtered.count > 0) ? 0 : -1;
     [self rebuildRows];
 }
 
