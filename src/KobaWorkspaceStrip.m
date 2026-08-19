@@ -100,7 +100,7 @@ static NSColor *KobaStatusBorderColor(KobaClaudeStatus status, BOOL selected) {
         NSTextField *number =
             [self cardLabel:_topLines[(NSUInteger)i]
                        font:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightSemibold]
-                      color:selected ? KobaColorTextPrimary() : KobaColorTextSecondary()
+                      color:KobaColorTextPrimary()
                        topY:KobaCardHeight - KobaCardTextInset];
         [card addSubview:number];
 
@@ -109,7 +109,7 @@ static NSColor *KobaStatusBorderColor(KobaClaudeStatus status, BOOL selected) {
             NSTextField *label =
                 [self cardLabel:line
                            font:[NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular]
-                          color:selected ? KobaColorTextSecondary() : KobaColorTextMuted()
+                          color:KobaColorTextSecondary()
                            topY:topY];
             [card addSubview:label];
             topY = NSMinY(label.frame) - 3;
