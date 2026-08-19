@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (NSString *)path;
 
+// Where workspace state is persisted between runs.
++ (NSString *)statePath;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -4,6 +4,7 @@
     ghostty_app_t _app;
     KobaSurfaceView *_terminal;
     KobaSurfaceView *_agent;
+    NSString *_initialDirectory;
 }
 
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app {
@@ -16,6 +17,7 @@
     if (!self) return nil;
 
     _app = app;
+    _initialDirectory = [workingDirectory copy];
     _terminal = [[KobaSurfaceView alloc] initWithGhosttyApp:app
                                           workingDirectory:workingDirectory];
     _agent = [[KobaSurfaceView alloc] initWithGhosttyApp:app
@@ -68,6 +70,10 @@
     NSString *root = [self rootDirectory];
     if (root == nil || [root isEqualToString:NSHomeDirectory()]) return @"~";
     return root.lastPathComponent;
+}
+
+- (NSString *)persistedDirectory {
+    return [self rootDirectory] ?: _initialDirectory ?: NSHomeDirectory();
 }
 
 - (void)closeAllSurfaces {

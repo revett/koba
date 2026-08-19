@@ -40,6 +40,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Terminal pane is inside a repository, otherwise the directory name.
 - (NSString *)directoryLabel;
 
+// The directory persisted to state.json: the live root directory when the
+// shell has reported one, otherwise the directory the workspace opened in.
+- (NSString *)persistedDirectory;
+
 // Replaces the Agent pane with a fresh shell spawned in the workspace's
 // root directory (git root of the Terminal pane's cwd, else the cwd). The
 // new pane becomes the focused pane.

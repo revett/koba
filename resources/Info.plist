@@ -10,6 +10,8 @@
 	<string>Koba</string>
 	<key>CFBundleExecutable</key>
 	<string>koba</string>
+	<key>CFBundleIconFile</key>
+	<string>koba</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

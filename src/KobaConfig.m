@@ -15,6 +15,11 @@ static NSError *KobaConfigError(NSString *message) {
         stringByAppendingPathComponent:@".config/koba/koba.json"];
 }
 
++ (NSString *)statePath {
+    return [NSHomeDirectory()
+        stringByAppendingPathComponent:@".config/koba/state.json"];
+}
+
 + (instancetype)loadWithError:(NSError **)error {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *path = [self path];

@@ -60,9 +60,17 @@ libghostty: $(LIBGHOSTTY)
 
 # --- App bundle -------------------------------------------------------------
 
-$(BIN): $(SRCS) $(HDRS) resources/Info.plist $(LIBGHOSTTY)
+$(BIN): $(SRCS) $(HDRS) resources/Info.plist resources/icon.png $(LIBGHOSTTY)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	cp resources/Info.plist $(APP)/Contents/Info.plist
+	mkdir -p build/koba.iconset
+	for s in 16 32 128 256 512; do \
+		sips -z $$s $$s resources/icon.png \
+			--out build/koba.iconset/icon_$${s}x$${s}.png > /dev/null; \
+		sips -z $$((s * 2)) $$((s * 2)) resources/icon.png \
+			--out build/koba.iconset/icon_$${s}x$${s}@2x.png > /dev/null; \
+	done
+	iconutil -c icns build/koba.iconset -o $(APP)/Contents/Resources/koba.icns
 	rsync -a --delete $(GHOSTTY_OUT)/share/ghostty/ $(APP)/Contents/Resources/ghostty/
 	rsync -a --delete $(GHOSTTY_OUT)/share/terminfo/ $(APP)/Contents/Resources/terminfo/
 	clang $(CFLAGS) $(SRCS) $(LDFLAGS) -o $(BIN)

@@ -17,8 +17,12 @@ static const CGFloat KobaStripHeight = 96;
 - (void)refreshPRForWorkspaceContainingPane:(KobaSurfaceView *)view;
 - (void)newWorkspaceInDirectory:(nullable NSString *)directory;
 - (void)dismissPalette;
+- (void)ensureWindow;
 - (void)showRepoPickerMandatory:(BOOL)mandatory
+                 includeRestore:(BOOL)includeRestore
                      withAction:(void (^)(NSString *directory))perform;
+- (NSUInteger)restorableWorkspaceCount;
+- (BOOL)restoreState;
 @end
 
 static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *> *arguments);
@@ -358,7 +362,14 @@ static void koba_close_surface(void *userdata, bool processAlive) {
         return event;
     }];
 
-    [self newWorkspace:nil];
+    // Restoring the previous session is offered on the launch picker, not
+    // done automatically.
+    [self ensureWindow];
+    [self showRepoPickerMandatory:YES
+                   includeRestore:YES
+                       withAction:^(NSString *directory) {
+        [self newWorkspaceInDirectory:directory];
+    }];
 
     // PRs open and close outside the app; poll to keep cards honest.
     [NSTimer scheduledTimerWithTimeInterval:60
@@ -450,6 +461,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     [self ensureWindow];
     if (_paletteOverlay != nil) return;
     [self showRepoPickerMandatory:_workspaces.count == 0
+                   includeRestore:NO
                        withAction:^(NSString *directory) {
         [self newWorkspaceInDirectory:directory];
     }];
@@ -519,7 +531,85 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     if (pane != nil) [_window makeFirstResponder:pane];
 }
 
+#pragma mark - State persistence
+
+// Workspace state (directories, titles, selection) survives restarts via
+// ~/.config/koba/state.json. Shells themselves are not restored.
+- (void)saveState {
+    NSMutableArray<NSDictionary *> *workspaces = [NSMutableArray array];
+    for (KobaWorkspace *workspace in _workspaces) {
+        NSMutableDictionary *entry =
+            [NSMutableDictionary dictionaryWithObject:workspace.persistedDirectory
+                                               forKey:@"directory"];
+        if (workspace.customTitle != nil) entry[@"title"] = workspace.customTitle;
+        [workspaces addObject:entry];
+    }
+
+    NSDictionary *state = @{
+        @"selectedIndex" : @(_selectedIndex),
+        @"workspaces" : workspaces,
+    };
+    NSData *data = [NSJSONSerialization dataWithJSONObject:state
+                                                   options:NSJSONWritingPrettyPrinted
+                                                     error:nil];
+    [data writeToFile:KobaConfig.statePath options:NSDataWritingAtomic error:nil];
+}
+
+// How many workspaces in state.json point at directories that still exist.
+- (NSUInteger)restorableWorkspaceCount {
+    NSData *data = [NSData dataWithContentsOfFile:KobaConfig.statePath];
+    if (data == nil) return 0;
+    NSDictionary *state = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (![state isKindOfClass:NSDictionary.class]) return 0;
+    NSArray *workspaces = state[@"workspaces"];
+    if (![workspaces isKindOfClass:NSArray.class]) return 0;
+
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSUInteger count = 0;
+    for (NSDictionary *entry in workspaces) {
+        if (![entry isKindOfClass:NSDictionary.class]) continue;
+        NSString *directory = entry[@"directory"];
+        if (![directory isKindOfClass:NSString.class]) continue;
+        BOOL isDirectory = NO;
+        if ([fm fileExistsAtPath:directory isDirectory:&isDirectory] && isDirectory) count++;
+    }
+    return count;
+}
+
+// Recreates workspaces from state.json. Returns NO when there is nothing
+// usable to restore.
+- (BOOL)restoreState {
+    NSData *data = [NSData dataWithContentsOfFile:KobaConfig.statePath];
+    if (data == nil) return NO;
+    NSDictionary *state = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (![state isKindOfClass:NSDictionary.class]) return NO;
+    NSArray *workspaces = state[@"workspaces"];
+    if (![workspaces isKindOfClass:NSArray.class]) return NO;
+
+    NSFileManager *fm = NSFileManager.defaultManager;
+    for (NSDictionary *entry in workspaces) {
+        if (![entry isKindOfClass:NSDictionary.class]) continue;
+        NSString *directory = entry[@"directory"];
+        if (![directory isKindOfClass:NSString.class]) continue;
+        BOOL isDirectory = NO;
+        if (![fm fileExistsAtPath:directory isDirectory:&isDirectory] || !isDirectory) continue;
+
+        [self newWorkspaceInDirectory:directory];
+        NSString *title = entry[@"title"];
+        if ([title isKindOfClass:NSString.class]) {
+            _workspaces.lastObject.customTitle = title;
+        }
+    }
+    if (_workspaces.count == 0) return NO;
+
+    NSInteger selectedIndex = [state[@"selectedIndex"] integerValue];
+    [self selectWorkspaceAtIndex:MIN(MAX(selectedIndex, 0),
+                                     (NSInteger)_workspaces.count - 1)];
+    return YES;
+}
+
 - (void)refreshStrip {
+    [self saveState];
     NSMutableArray<NSString *> *topLines = [NSMutableArray array];
     NSMutableArray<NSArray<NSString *> *> *lines = [NSMutableArray array];
     for (NSUInteger i = 0; i < _workspaces.count; i++) {
@@ -726,7 +816,9 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
 
     [titles addObject:@"Workspace → Change Directory"];
     [actions addObject:^{
-        [self showRepoPickerMandatory:NO withAction:^(NSString *directory) {
+        [self showRepoPickerMandatory:NO
+                       includeRestore:NO
+                           withAction:^(NSString *directory) {
             [self switchWorkspaceDirectory:directory];
         }];
     }];
@@ -875,14 +967,25 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
     return repos;
 }
 
-// Pick a git repository, then hand the chosen path to `perform`.
+// Pick a git repository, then hand the chosen path to `perform`. At launch
+// (includeRestore) the previous session, if any, is offered as the first row.
 - (void)showRepoPickerMandatory:(BOOL)mandatory
+                 includeRestore:(BOOL)includeRestore
                      withAction:(void (^)(NSString *directory))perform {
     NSArray<NSString *> *repos = [self discoverRepos];
 
     NSMutableArray<NSString *> *titles = [NSMutableArray array];
     NSMutableArray<void (^)(void)> *actions = [NSMutableArray array];
     NSAttributedString *note = nil;
+
+    NSUInteger restorable = includeRestore ? [self restorableWorkspaceCount] : 0;
+    if (restorable > 0) {
+        [titles addObject:[NSString stringWithFormat:@"Restore Previous Session (%lu workspace%@)",
+                           restorable, restorable == 1 ? @"" : @"s"]];
+        [actions addObject:^{
+            if (![self restoreState]) [self newWorkspace:nil];
+        }];
+    }
 
     if (repos.count == 0) {
         [titles addObject:@"~"];
