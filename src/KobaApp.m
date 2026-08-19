@@ -14,6 +14,7 @@ static const CGFloat KobaStripHeight = 96;
 - (void)updateClaudeStatusForPane:(KobaSurfaceView *)view
                     progressState:(ghostty_action_progress_report_state_e)state;
 - (void)selectWorkspaceAtIndex:(NSInteger)index;
+- (void)toggleOverview;
 - (void)selectWorkspaceForGotoTab:(NSInteger)which;
 - (void)refreshStrip;
 - (void)refreshPRForWorkspaceContainingPane:(KobaSurfaceView *)view;
@@ -202,6 +203,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     KobaWorkspaceStrip *_strip;
     NSMutableArray<KobaWorkspace *> *_workspaces;
     NSInteger _selectedIndex;
+    NSInteger _indexBeforeOverview;
     id _keyMonitor;
     NSView *_keybindingsOverlay;
     NSView *_paletteOverlay;
@@ -349,6 +351,22 @@ static void koba_close_surface(void *userdata, bool processAlive) {
                 }
             }
             return nil;
+        }
+
+        if (mods == NSEventModifierFlagCommand && event.keyCode == kVK_ISO_Section) {
+            [self toggleOverview];
+            return nil;
+        }
+
+        // ghostty's cmd+1..9 binding is delivered by the focused surface, and
+        // the overview has none; handle the digits here instead.
+        if (self->_selectedIndex < 0 && mods == NSEventModifierFlagCommand) {
+            NSString *characters = event.charactersIgnoringModifiers;
+            unichar digit = characters.length == 1 ? [characters characterAtIndex:0] : 0;
+            if (digit >= '1' && digit <= '9') {
+                [self selectWorkspaceForGotoTab:digit - '0'];
+                return nil;
+            }
         }
 
         if (mods == (NSEventModifierFlagCommand | NSEventModifierFlagShift)) {
@@ -526,6 +544,14 @@ static void koba_close_surface(void *userdata, bool processAlive) {
         [self newWorkspace:nil];
         return;
     }
+    // A shell exiting elsewhere must not drag the overview into a workspace.
+    if (_selectedIndex < 0) {
+        _indexBeforeOverview = MIN(_indexBeforeOverview,
+                                   (NSInteger)_workspaces.count - 1);
+        [self showOverviewCanvas];
+        [self refreshStrip];
+        return;
+    }
     [self selectWorkspaceAtIndex:MIN(MAX(_selectedIndex - (index <= _selectedIndex), 0),
                                      (NSInteger)_workspaces.count - 1)];
 }
@@ -546,6 +572,50 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     KobaSurfaceView *pane = workspace.focusedPane ?: workspace.panes.firstObject;
     if (pane != nil) [_window makeFirstResponder:pane];
     [self acknowledgeClaudeStatusIfFocused:workspace];
+}
+
+#pragma mark - Overview
+
+// The overview is the app with no workspace selected: an empty canvas below
+// the strip, which keeps showing every workspace and its Claude status.
+// Somewhere to sit while agents work, with no pane holding the keyboard.
+- (void)toggleOverview {
+    if (_selectedIndex >= 0) {
+        _indexBeforeOverview = _selectedIndex;
+        _selectedIndex = -1;
+        [self showOverviewCanvas];
+        [_window makeFirstResponder:nil];
+        [self refreshStrip];
+        return;
+    }
+
+    // Back to the workspace cmd+section was pressed in, or the last one left
+    // if it has since closed.
+    [self selectWorkspaceAtIndex:MIN(_indexBeforeOverview,
+                                     (NSInteger)_workspaces.count - 1)];
+}
+
+// The overview canvas: the space the panes normally fill, holding only a
+// count of the workspaces in flight.
+- (void)showOverviewCanvas {
+    [_workspaceContainer.subviews.copy
+        makeObjectsPerformSelector:@selector(removeFromSuperview)];
+
+    unsigned long count = (unsigned long)_workspaces.count;
+    NSTextField *label = [NSTextField labelWithString:
+        [NSString stringWithFormat:@"%lu stream%@ of work",
+                                   count, count == 1 ? @"" : @"s"]];
+    label.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightRegular];
+    label.textColor = KobaColorTextSecondary();
+    [label sizeToFit];
+
+    NSRect bounds = _workspaceContainer.bounds;
+    label.frame = NSMakeRect(floor((NSWidth(bounds) - NSWidth(label.frame)) / 2),
+                             floor((NSHeight(bounds) - NSHeight(label.frame)) / 2),
+                             NSWidth(label.frame), NSHeight(label.frame));
+    label.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin |
+                             NSViewMinYMargin | NSViewMaxYMargin;
+    [_workspaceContainer addSubview:label];
 }
 
 #pragma mark - State persistence
@@ -774,7 +844,10 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     if (count == 0) return;
     switch (which) {
         case GHOSTTY_GOTO_TAB_PREVIOUS:
-            [self selectWorkspaceAtIndex:(_selectedIndex - 1 + count) % count];
+            // From the overview, step back into the last workspace.
+            [self selectWorkspaceAtIndex:_selectedIndex < 0
+                ? count - 1
+                : (_selectedIndex - 1 + count) % count];
             break;
         case GHOSTTY_GOTO_TAB_NEXT:
             [self selectWorkspaceAtIndex:(_selectedIndex + 1) % count];
@@ -834,19 +907,22 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         }];
     }
 
-    [titles addObject:@"Workspace → Change Directory"];
-    [actions addObject:^{
-        [self showRepoPickerMandatory:NO
-                       includeRestore:NO
-                           withAction:^(NSString *directory) {
-            [self switchWorkspaceDirectory:directory];
+    // Workspace commands need a workspace; the overview has none.
+    if ([self selectedWorkspace] != nil) {
+        [titles addObject:@"Workspace → Change Directory"];
+        [actions addObject:^{
+            [self showRepoPickerMandatory:NO
+                           includeRestore:NO
+                               withAction:^(NSString *directory) {
+                [self switchWorkspaceDirectory:directory];
+            }];
         }];
-    }];
 
-    [titles addObject:@"Workspace → Update Title"];
-    [actions addObject:^{
-        [self showAmendTitleInput];
-    }];
+        [titles addObject:@"Workspace → Update Title"];
+        [actions addObject:^{
+            [self showAmendTitleInput];
+        }];
+    }
 
     [titles addObject:@"Window → Switch Workspace"];
     [actions addObject:^{
@@ -1078,6 +1154,7 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
         @[ @"cmd+]", @"Next workspace" ],
         @[ @"cmd+[", @"Previous workspace" ],
         @[ @"cmd+1..9", @"Go to workspace" ],
+        @[ @"cmd+§", @"Toggle overview" ],
         @[ @"cmd+shift+]", @"Next pane" ],
         @[ @"cmd+shift+[", @"Previous pane" ],
         @[ @"cmd+shift+p", @"Command palette" ],
