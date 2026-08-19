@@ -23,6 +23,8 @@ static const NSInteger KobaPaletteMaxRows = 12;
     NSInteger _selectedRow;          // index into _filtered
     BOOL _textInput;
     NSInteger _maxLength;
+    NSView *_cursor;
+    NSTimer *_blinkTimer;
 }
 
 - (instancetype)initWithCommands:(NSArray<NSString *> *)titles {
@@ -78,8 +80,22 @@ static const NSInteger KobaPaletteMaxRows = 12;
     self.layer.borderWidth = 1;
     self.layer.borderColor = KobaColorBorder().CGColor;
 
+    __weak KobaCommandPalette *weakSelf = self;
+    _blinkTimer = [NSTimer scheduledTimerWithTimeInterval:0.5
+                                                  repeats:YES
+                                                    block:^(NSTimer *timer) {
+        KobaCommandPalette *palette = weakSelf;
+        if (palette == nil) return;
+        palette->_cursor.hidden = !palette->_cursor.hidden;
+    }];
+
     [self applyFilter];
     return self;
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (self.window == nil) [_blinkTimer invalidate];
 }
 
 - (NSString *)query {
@@ -160,6 +176,19 @@ static const NSInteger KobaPaletteMaxRows = 12;
                              KobaPaletteWidth - 2 * KobaPaletteInset,
                              NSHeight(query.frame));
     [self addSubview:query];
+
+    // Terminal-style cursor sitting after the typed text (visible even over
+    // the placeholder, at position zero). The shared timer blinks it.
+    NSFont *queryFont = query.font;
+    CGFloat textWidth = hasQuery
+        ? ceil([_query sizeWithAttributes:@{ NSFontAttributeName : queryFont }].width)
+        : 0;
+    _cursor = [[NSView alloc] initWithFrame:
+        NSMakeRect(KobaPaletteInset + textWidth + 1,
+                   queryY + (KobaPaletteQueryHeight - 15) / 2, 2, 15)];
+    _cursor.wantsLayer = YES;
+    _cursor.layer.backgroundColor = KobaColorTextPrimary().CGColor;
+    [self addSubview:_cursor];
 
     CGFloat dividerY = queryY - KobaPaletteInset - 1;
     NSView *divider = [[NSView alloc] initWithFrame:
