@@ -1,4 +1,5 @@
 #import "KobaSurfaceView.h"
+#import "KobaColors.h"
 #import <QuartzCore/QuartzCore.h>
 #import <IOKit/hidsystem/IOLLEvent.h>
 
@@ -30,8 +31,12 @@ static int KobaMomentum(NSEventPhase phase) {
     }
 }
 
+// A bar this tall along the top edge marks the focused pane.
+static const CGFloat KobaFocusBorderHeight = 2;
+
 @implementation KobaSurfaceView {
     BOOL _focused;
+    NSView *_focusBorder;
 }
 
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app {
@@ -60,6 +65,15 @@ static int KobaMomentum(NSEventPhase phase) {
     // Surfaces start focused inside ghostty; unfocus so only the pane that
     // actually becomes first responder shows a blinking cursor.
     ghostty_surface_set_focus(_surface, false);
+
+    _focusBorder = [[NSView alloc]
+        initWithFrame:NSMakeRect(0, NSHeight(self.bounds) - KobaFocusBorderHeight,
+                                 NSWidth(self.bounds), KobaFocusBorderHeight)];
+    _focusBorder.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    _focusBorder.wantsLayer = YES;
+    _focusBorder.layer.backgroundColor = KobaColorBorder().CGColor;
+    _focusBorder.hidden = YES;
+    [self addSubview:_focusBorder];
 
     return self;
 }
@@ -107,6 +121,7 @@ static int KobaMomentum(NSEventPhase phase) {
     if (focused == _focused) return;
     _focused = focused;
     ghostty_surface_set_focus(_surface, focused);
+    _focusBorder.hidden = !focused;
 }
 
 #pragma mark - Geometry
