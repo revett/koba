@@ -14,9 +14,9 @@ LIBGHOSTTY := $(GHOSTTY_OUT)/lib/libghostty.a
 
 APP := build/Koba.app
 BIN := $(APP)/Contents/MacOS/koba
-SRCS := src/main.m src/KobaApp.m src/KobaCommandPalette.m src/KobaConfig.m \
-	src/KobaSplitView.m src/KobaSurfaceView.m src/KobaWorkspace.m \
-	src/KobaWorkspaceStrip.m
+SRCS := src/main.m src/KobaApp.m src/KobaColors.m src/KobaCommandPalette.m \
+	src/KobaConfig.m src/KobaSplitView.m src/KobaSurfaceView.m \
+	src/KobaWorkspace.m src/KobaWorkspaceStrip.m
 HDRS := src/KobaApp.h src/KobaColors.h src/KobaCommandPalette.h \
 	src/KobaConfig.h src/KobaSplitView.h src/KobaSurfaceView.h \
 	src/KobaWorkspace.h src/KobaWorkspaceStrip.h

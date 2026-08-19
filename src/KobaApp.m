@@ -220,6 +220,17 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     ghostty_config_load_default_files(_config);
     ghostty_config_finalize(_config);
 
+    // Koba's chrome palette derives from the theme's background/foreground
+    // so the app always matches the terminal.
+    ghostty_config_color_s bg = {0};
+    ghostty_config_color_s fg = {0};
+    if (ghostty_config_get(_config, &bg, "background", strlen("background")) &&
+        ghostty_config_get(_config, &fg, "foreground", strlen("foreground"))) {
+        KobaColorsInitialize(
+            [NSColor colorWithSRGBRed:bg.r / 255.0 green:bg.g / 255.0 blue:bg.b / 255.0 alpha:1],
+            [NSColor colorWithSRGBRed:fg.r / 255.0 green:fg.g / 255.0 blue:fg.b / 255.0 alpha:1]);
+    }
+
     ghostty_runtime_config_s runtime = {
         .userdata = (__bridge void *)self,
         .supports_selection_clipboard = false,
