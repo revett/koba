@@ -41,6 +41,11 @@ run: $(BIN)
 install: $(BIN)
 	mkdir -p ~/Applications
 	rsync -a --delete $(APP)/ ~/Applications/Koba.app/
+	/usr/libexec/PlistBuddy \
+		-c 'Set :CFBundleName Koba' \
+		-c 'Set :CFBundleDisplayName Koba' \
+		~/Applications/Koba.app/Contents/Info.plist
+	codesign --force --sign - ~/Applications/Koba.app
 
 # --- Toolchain + vendored ghostty ------------------------------------------
 
@@ -67,6 +72,10 @@ libghostty: $(LIBGHOSTTY)
 $(BIN): $(SRCS) $(HDRS) resources/Info.plist resources/icon.png $(LIBGHOSTTY)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	cp resources/Info.plist $(APP)/Contents/Info.plist
+	/usr/libexec/PlistBuddy \
+		-c 'Set :CFBundleName "Koba (Dev)"' \
+		-c 'Set :CFBundleDisplayName "Koba (Dev)"' \
+		$(APP)/Contents/Info.plist
 	mkdir -p build/koba.iconset
 	for s in 16 32 128 256 512; do \
 		sips -z $$s $$s resources/icon.png \

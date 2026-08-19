@@ -418,7 +418,8 @@ static void koba_close_surface(void *userdata, bool processAlive) {
                             NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    _window.title = @"Koba";
+    _window.title =
+        [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"] ?: @"Koba";
     _window.releasedWhenClosed = NO;
     _window.delegate = self;
     _window.tabbingMode = NSWindowTabbingModeDisallowed;
