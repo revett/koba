@@ -1022,14 +1022,18 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
     KobaWorkspace *workspace = [self selectedWorkspace];
     if (workspace == nil) return;
 
-    NSAttributedString *note = [[NSAttributedString alloc]
-        initWithString:[NSString stringWithFormat:@"Max %ld characters, empty clears the title",
-                        (long)KobaWorkspaceTitleMaxLength]
-            attributes:@{
-                NSFontAttributeName :
-                    [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
-                NSForegroundColorAttributeName : KobaColorTextMuted(),
-            }];
+    NSAttributedString *(^note)(NSString *) = ^(NSString *text) {
+        NSInteger remaining = KobaWorkspaceTitleMaxLength - (NSInteger)text.length;
+        return [[NSAttributedString alloc]
+            initWithString:[NSString stringWithFormat:
+                            @"%ld character%@ remaining, empty clears the title",
+                            (long)remaining, remaining == 1 ? @"" : @"s"]
+                attributes:@{
+                    NSFontAttributeName :
+                        [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
+                    NSForegroundColorAttributeName : KobaColorTextMuted(),
+                }];
+    };
 
     _palette = [[KobaCommandPalette alloc]
         initForTextInputWithPlaceholder:@"Workspace title…"

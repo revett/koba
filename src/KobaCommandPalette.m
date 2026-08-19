@@ -16,7 +16,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
 
 @implementation KobaCommandPalette {
     NSArray<NSString *> *_titles;
-    NSAttributedString *_note;
+    NSAttributedString *(^_note)(NSString *text);
     NSString *_placeholder;
     NSMutableString *_query;
     NSArray<NSNumber *> *_filtered;  // indices into _titles
@@ -35,7 +35,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
                             note:(NSAttributedString *)note {
     NSInteger rows = MIN(MAX((NSInteger)titles.count, 1), KobaPaletteMaxRows);
     return [self initWithTitles:titles
-                           note:note
+                           note:note != nil ? ^(NSString *text) { return note; } : nil
                     placeholder:@"Type to filter…"
                       textInput:NO
                       maxLength:0
@@ -43,7 +43,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
 }
 
 - (instancetype)initForTextInputWithPlaceholder:(NSString *)placeholder
-                                           note:(NSAttributedString *)note
+                                           note:(NSAttributedString * (^)(NSString *text))note
                                       maxLength:(NSInteger)maxLength {
     return [self initWithTitles:@[]
                            note:note
@@ -54,7 +54,7 @@ static const NSInteger KobaPaletteMaxRows = 12;
 }
 
 - (instancetype)initWithTitles:(NSArray<NSString *> *)titles
-                          note:(NSAttributedString *)note
+                          note:(NSAttributedString *(^)(NSString *text))note
                    placeholder:(NSString *)placeholder
                      textInput:(BOOL)textInput
                      maxLength:(NSInteger)maxLength
@@ -197,9 +197,10 @@ static const NSInteger KobaPaletteMaxRows = 12;
     divider.layer.backgroundColor = KobaColorBorder().CGColor;
     [self addSubview:divider];
 
-    if (_note != nil) {
+    NSAttributedString *noteText = _note != nil ? _note([_query copy]) : nil;
+    if (noteText != nil) {
         NSTextField *note = [NSTextField labelWithString:@""];
-        note.attributedStringValue = _note;
+        note.attributedStringValue = noteText;
         note.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [note sizeToFit];
         note.frame = NSMakeRect(KobaPaletteInset,

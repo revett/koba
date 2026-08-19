@@ -19,9 +19,10 @@ NS_ASSUME_NONNULL_BEGIN
                             note:(nullable NSAttributedString *)note;
 
 // A text-input palette: no command rows, just the query line (which becomes
-// the entered text) and an optional note. maxLength of 0 means unlimited.
+// the entered text) and an optional note, re-rendered from the current text
+// on every keystroke. maxLength of 0 means unlimited.
 - (instancetype)initForTextInputWithPlaceholder:(NSString *)placeholder
-                                           note:(nullable NSAttributedString *)note
+                                           note:(nullable NSAttributedString * (^)(NSString *text))note
                                       maxLength:(NSInteger)maxLength;
 
 // The current query / entered text.
