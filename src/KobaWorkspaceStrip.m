@@ -12,6 +12,7 @@ static const CGFloat KobaCardTextInset = 8;
 @implementation KobaWorkspaceStrip {
     NSArray<NSString *> *_topLines;
     NSArray<NSArray<NSString *> *> *_lines;
+    NSArray<NSNumber *> *_statuses;
     NSInteger _selectedIndex;
 }
 
@@ -20,17 +21,31 @@ static const CGFloat KobaCardTextInset = 8;
     if (!self) return nil;
     _topLines = @[];
     _lines = @[];
+    _statuses = @[];
     _selectedIndex = -1;
     return self;
 }
 
 - (void)updateWithTopLines:(NSArray<NSString *> *)topLines
                      lines:(NSArray<NSArray<NSString *> *> *)lines
+                  statuses:(NSArray<NSNumber *> *)statuses
              selectedIndex:(NSInteger)selectedIndex {
     _topLines = [topLines copy];
     _lines = [lines copy];
+    _statuses = [statuses copy];
     _selectedIndex = selectedIndex;
     [self rebuildCards];
+}
+
+// Idle keeps the neutral chrome; anything else colors the border.
+static NSColor *KobaStatusBorderColor(KobaClaudeStatus status, BOOL selected) {
+    switch (status) {
+        case KobaClaudeStatusWorking: return KobaColorStatusWorking();
+        case KobaClaudeStatusDone: return KobaColorStatusDone();
+        case KobaClaudeStatusError: return KobaColorStatusError();
+        case KobaClaudeStatusIdle:
+            return selected ? KobaColorSelectedBorder() : KobaColorBorder();
+    }
 }
 
 - (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
@@ -74,11 +89,10 @@ static const CGFloat KobaCardTextInset = 8;
         NSView *card = [[NSView alloc] initWithFrame:
             NSMakeRect(KobaStripPadding + i * (KobaCardWidth + KobaCardSpacing) - shift, y,
                        KobaCardWidth, KobaCardHeight)];
+        KobaClaudeStatus status = (KobaClaudeStatus)_statuses[(NSUInteger)i].integerValue;
         card.wantsLayer = YES;
         card.layer.borderWidth = selected ? 2 : 1;
-        card.layer.borderColor = selected
-            ? KobaColorSelectedBorder().CGColor
-            : KobaColorBorder().CGColor;
+        card.layer.borderColor = KobaStatusBorderColor(status, selected).CGColor;
         card.layer.backgroundColor = selected
             ? KobaColorSelectedFill().CGColor
             : NSColor.clearColor.CGColor;

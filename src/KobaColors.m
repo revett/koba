@@ -89,3 +89,16 @@ NSColor *KobaColorTextMuted(void) {
 NSColor *KobaColorWarning(void) {
     return KobaColorHex(0xf59e0b);  // amber-500
 }
+
+// Claude status
+NSColor *KobaColorStatusWorking(void) {
+    return KobaColorHex(0x3b82f6);  // blue-500
+}
+
+NSColor *KobaColorStatusDone(void) {
+    return KobaColorHex(0x22c55e);  // green-500
+}
+
+NSColor *KobaColorStatusError(void) {
+    return KobaColorHex(0xef4444);  // red-500
+}

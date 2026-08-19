@@ -11,6 +11,8 @@ static const CGFloat KobaStripHeight = 96;
 
 @interface KobaApp ()
 - (void)closeWorkspaceContainingPane:(KobaSurfaceView *)view;
+- (void)updateClaudeStatusForPane:(KobaSurfaceView *)view
+                    progressState:(ghostty_action_progress_report_state_e)state;
 - (void)selectWorkspaceAtIndex:(NSInteger)index;
 - (void)selectWorkspaceForGotoTab:(NSInteger)which;
 - (void)refreshStrip;
@@ -98,6 +100,19 @@ static bool koba_action(ghostty_app_t app,
                 view.pwd = pwd;
                 [koba refreshStrip];
                 [koba refreshPRForWorkspaceContainingPane:view];
+            });
+            return true;
+        }
+
+        // Progress reports (OSC 9;4) from the Agent pane drive the card's
+        // Claude status. Only the main Claude session writes these, so
+        // subagent activity never flickers the border.
+        case GHOSTTY_ACTION_PROGRESS_REPORT: {
+            if (target.tag != GHOSTTY_TARGET_SURFACE) return false;
+            KobaSurfaceView *view = KobaViewFromSurface(target.target.surface);
+            ghostty_action_progress_report_state_e state = action.action.progress_report.state;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [koba updateClaudeStatusForPane:view progressState:state];
             });
             return true;
         }
@@ -529,6 +544,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
 
     KobaSurfaceView *pane = workspace.focusedPane ?: workspace.panes.firstObject;
     if (pane != nil) [_window makeFirstResponder:pane];
+    [self acknowledgeClaudeStatusIfFocused:workspace];
 }
 
 #pragma mark - State persistence
@@ -612,6 +628,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     [self saveState];
     NSMutableArray<NSString *> *topLines = [NSMutableArray array];
     NSMutableArray<NSArray<NSString *> *> *lines = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *statuses = [NSMutableArray array];
     for (NSUInteger i = 0; i < _workspaces.count; i++) {
         KobaWorkspace *workspace = _workspaces[i];
         [topLines addObject:workspace.customTitle != nil
@@ -623,8 +640,10 @@ static void koba_close_surface(void *userdata, bool processAlive) {
         if (workspace.ticketLabel != nil) [cardLines addObject:workspace.ticketLabel];
         if (workspace.prLabel != nil) [cardLines addObject:workspace.prLabel];
         [lines addObject:cardLines];
+        [statuses addObject:@(workspace.claudeStatus)];
     }
-    [_strip updateWithTopLines:topLines lines:lines selectedIndex:_selectedIndex];
+    [_strip updateWithTopLines:topLines lines:lines statuses:statuses
+                 selectedIndex:_selectedIndex];
 }
 
 #pragma mark - GitHub PR lookups
@@ -1207,6 +1226,48 @@ static CGFloat KobaTextWidth(NSString *text, NSFont *font) {
     KobaSurfaceView *next = panes[(current + direction + count) % count];
     workspace.focusedPane = next;
     [_window makeFirstResponder:next];
+    [self acknowledgeClaudeStatusIfFocused:workspace];
+}
+
+#pragma mark - Claude status
+
+- (void)updateClaudeStatusForPane:(KobaSurfaceView *)view
+                    progressState:(ghostty_action_progress_report_state_e)state {
+    for (KobaWorkspace *workspace in _workspaces) {
+        // Only the Agent pane means Claude; Terminal pane progress is noise.
+        if (workspace.agentPane != view) continue;
+
+        KobaClaudeStatus status = workspace.claudeStatus;
+        switch (state) {
+            case GHOSTTY_PROGRESS_STATE_SET:
+            case GHOSTTY_PROGRESS_STATE_INDETERMINATE:
+            case GHOSTTY_PROGRESS_STATE_PAUSE:
+                status = KobaClaudeStatusWorking;
+                break;
+            case GHOSTTY_PROGRESS_STATE_ERROR:
+                status = KobaClaudeStatusError;
+                break;
+            case GHOSTTY_PROGRESS_STATE_REMOVE:
+                // Errors stick until acknowledged; a finished run shows Done.
+                if (status == KobaClaudeStatusWorking) status = KobaClaudeStatusDone;
+                break;
+        }
+
+        if (status != workspace.claudeStatus) {
+            workspace.claudeStatus = status;
+            [self refreshStrip];
+        }
+        return;
+    }
+}
+
+// Focusing the Agent pane acknowledges a finished or failed run.
+- (void)acknowledgeClaudeStatusIfFocused:(KobaWorkspace *)workspace {
+    if (workspace.focusedPane != workspace.agentPane) return;
+    if (workspace.claudeStatus != KobaClaudeStatusDone &&
+        workspace.claudeStatus != KobaClaudeStatusError) return;
+    workspace.claudeStatus = KobaClaudeStatusIdle;
+    [self refreshStrip];
 }
 
 - (void)closeWorkspaceContainingPane:(KobaSurfaceView *)view {

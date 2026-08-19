@@ -2,7 +2,6 @@
 
 - [ ] Slack notifications
 - [ ] macOS notifications
-- [ ] Claude status
 - [ ] Emphemeral panes
 - [ ] Browser support
 - [ ] Create tasks from [Jacob's app](https://github.com/JacobCutts13/cockpit-docs)

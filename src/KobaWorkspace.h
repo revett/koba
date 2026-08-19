@@ -5,6 +5,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Claude's status in the Agent pane, driven by terminal progress reports.
+typedef NS_ENUM(NSInteger, KobaClaudeStatus) {
+    KobaClaudeStatusIdle,
+    KobaClaudeStatusWorking,
+    KobaClaudeStatusDone,
+    KobaClaudeStatusError,
+};
+
 // One workspace: a fixed split holding the Terminal and Agent panes.
 @interface KobaWorkspace : NSObject
 
@@ -16,6 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // User-set title shown after "#N" on the workspace card's top line.
 @property (nonatomic, copy, nullable) NSString *customTitle;
+
+// Shown as the card's border color. Done/Error stick until acknowledged by
+// focusing the Agent pane.
+@property (nonatomic) KobaClaudeStatus claudeStatus;
 
 // Ticket key detected in the current branch name (e.g. "ABC-123").
 @property (nonatomic, copy, nullable) NSString *ticketLabel;

@@ -25,3 +25,8 @@ NSColor *KobaColorTextPrimary(void);
 NSColor *KobaColorTextSecondary(void);
 NSColor *KobaColorTextMuted(void);
 NSColor *KobaColorWarning(void);
+
+// Claude status (workspace card borders)
+NSColor *KobaColorStatusWorking(void);
+NSColor *KobaColorStatusDone(void);
+NSColor *KobaColorStatusError(void);
