@@ -485,8 +485,12 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     [workspace.view removeFromSuperview];
     [_workspaces removeObjectAtIndex:(NSUInteger)index];
 
+    // Closing the last workspace returns to the launch state: an empty
+    // window with the mandatory repo picker.
     if (_workspaces.count == 0) {
-        [_window close];
+        _selectedIndex = -1;
+        [self refreshStrip];
+        [self newWorkspace:nil];
         return;
     }
     [self selectWorkspaceAtIndex:MIN(MAX(_selectedIndex - (index <= _selectedIndex), 0),
