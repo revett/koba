@@ -23,6 +23,7 @@ static const CGFloat KobaStripHeight = 96;
 
 static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *> *arguments);
 static NSString *KobaTicketFromBranch(NSString *branch);
+static NSFont *KobaHelpDescFont(void);
 
 static KobaApp *KobaAppFrom(void *userdata) {
     return (__bridge KobaApp *)userdata;
@@ -260,9 +261,13 @@ static void koba_close_surface(void *userdata, bool processAlive) {
         NSEventModifierFlags mods =
             event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
 
-        // While the keybindings overlay is up, any key dismisses it.
+        // While the keybindings overlay is up, any key dismisses it. Quit
+        // still works: close the overlay and let the menu handle cmd+q.
         if (self->_keybindingsOverlay != nil) {
             [self toggleKeybindings];
+            if (mods == NSEventModifierFlagCommand && event.keyCode == kVK_ANSI_Q) {
+                return event;
+            }
             return nil;
         }
 
@@ -914,6 +919,28 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
 
 #pragma mark - Keybindings overlay
 
+// The user's global Claude skills (~/.claude/skills), as name/description
+// pairs read from each SKILL.md's frontmatter.
+- (NSArray<NSArray<NSString *> *> *)claudeSkills {
+    NSString *skillsDir = [NSHomeDirectory() stringByAppendingPathComponent:@".claude/skills"];
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSArray<NSString *> *names = [[fm contentsOfDirectoryAtPath:skillsDir error:nil]
+        sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+
+    NSMutableArray<NSArray<NSString *> *> *skills = [NSMutableArray array];
+    for (NSString *name in names) {
+        NSString *skillPath = [skillsDir stringByAppendingPathComponent:
+            [name stringByAppendingPathComponent:@"SKILL.md"]];
+        NSString *contents = [NSString stringWithContentsOfFile:skillPath
+                                                       encoding:NSUTF8StringEncoding
+                                                          error:nil];
+        if (contents == nil) continue;
+
+        [skills addObject:@[ [@"/" stringByAppendingString:name], @"" ]];
+    }
+    return skills;
+}
+
 - (void)toggleKeybindings {
     if (_keybindingsOverlay != nil) {
         [_keybindingsOverlay removeFromSuperview];
@@ -934,12 +961,27 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
         @[ @"cmd+?", @"Toggle this help" ],
         @[ @"cmd+q", @"Quit" ],
     ];
+    NSArray<NSArray<NSString *> *> *skills = [self claudeSkills];
 
     const CGFloat rowHeight = 22;
     const CGFloat padding = 20;
-    const CGFloat cardWidth = 340;
     const CGFloat titleHeight = 18;
-    CGFloat cardHeight = padding + titleHeight + 14 + bindings.count * rowHeight + padding;
+    const CGFloat titleGap = 14;
+    const CGFloat sectionGap = 48;
+    const CGFloat maxDescWidth = 420;
+
+    // Both sections are the same total width and share the same key column
+    // width; skills are names only but still occupy a full-width section.
+    CGFloat keyWidth = MAX([self helpKeyWidth:bindings], [self helpKeyWidth:skills]);
+    CGFloat descWidth = MIN(maxDescWidth, [self helpDescWidth:bindings]);
+    CGFloat sectionWidth = keyWidth + 12 + descWidth;
+    CGFloat cardWidth = padding + sectionWidth + padding;
+    if (skills.count > 0) cardWidth += sectionGap + sectionWidth;
+
+    NSUInteger tallest = MAX(bindings.count, skills.count);
+    // The last row carries ~6pt of internal line slack below its glyphs;
+    // trim it from the bottom padding so top and bottom read equal.
+    CGFloat cardHeight = padding + titleHeight + titleGap + tallest * rowHeight + padding - 6;
 
     NSView *content = _window.contentView;
     NSView *overlay = [[NSView alloc] initWithFrame:content.bounds];
@@ -958,33 +1000,87 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
     card.layer.borderWidth = 1;
     card.layer.borderColor = KobaColorBorder().CGColor;
 
-    NSTextField *title = [NSTextField labelWithString:@"Keybindings"];
-    title.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightSemibold];
-    title.textColor = KobaColorTextPrimary();
-    [title sizeToFit];
-    title.frame = NSMakeRect(padding, cardHeight - padding - titleHeight,
-                             cardWidth - 2 * padding, titleHeight);
-    [card addSubview:title];
-
-    for (NSUInteger i = 0; i < bindings.count; i++) {
-        CGFloat y = cardHeight - padding - titleHeight - 14 - (i + 1) * rowHeight;
-
-        NSTextField *key = [NSTextField labelWithString:bindings[i][0]];
-        key.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightSemibold];
-        key.textColor = KobaColorTextPrimary();
-        key.frame = NSMakeRect(padding, y, 130, rowHeight);
-        [card addSubview:key];
-
-        NSTextField *desc = [NSTextField labelWithString:bindings[i][1]];
-        desc.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
-        desc.textColor = KobaColorTextSecondary();
-        desc.frame = NSMakeRect(padding + 140, y, cardWidth - padding - 140, rowHeight);
-        [card addSubview:desc];
+    CGFloat topY = cardHeight - padding;
+    [self addHelpSection:@"Keybindings" rows:bindings toCard:card
+                  atTopY:topY x:padding keyWidth:keyWidth width:sectionWidth
+                 keyFont:KobaHelpDescFont()
+               rowHeight:rowHeight titleHeight:titleHeight titleGap:titleGap];
+    if (skills.count > 0) {
+        [self addHelpSection:@"Claude Skills" rows:skills toCard:card
+                      atTopY:topY x:padding + sectionWidth + sectionGap
+                      keyWidth:keyWidth width:sectionWidth
+                     keyFont:KobaHelpDescFont()
+                   rowHeight:rowHeight titleHeight:titleHeight titleGap:titleGap];
     }
 
     [overlay addSubview:card];
     [content addSubview:overlay];
     _keybindingsOverlay = overlay;
+}
+
+static NSFont *KobaHelpDescFont(void) {
+    return [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
+}
+
+static CGFloat KobaTextWidth(NSString *text, NSFont *font) {
+    // +6 covers NSTextField's cell padding so measured text never clips.
+    return ceil([text sizeWithAttributes:@{ NSFontAttributeName : font }].width) + 6;
+}
+
+// Widest key column of a section, used to place descriptions 12pt after it.
+- (CGFloat)helpKeyWidth:(NSArray<NSArray<NSString *> *> *)rows {
+    CGFloat width = 0;
+    for (NSArray<NSString *> *row in rows) {
+        width = MAX(width, KobaTextWidth(row[0], KobaHelpDescFont()));
+    }
+    return width;
+}
+
+// Widest description of a section.
+- (CGFloat)helpDescWidth:(NSArray<NSArray<NSString *> *> *)rows {
+    CGFloat width = 0;
+    for (NSArray<NSString *> *row in rows) {
+        width = MAX(width, KobaTextWidth(row[1], KobaHelpDescFont()));
+    }
+    return width;
+}
+
+// Renders a titled key/description list in a column of the given width.
+- (void)addHelpSection:(NSString *)sectionTitle
+                  rows:(NSArray<NSArray<NSString *> *> *)rows
+                toCard:(NSView *)card
+                atTopY:(CGFloat)topY
+                     x:(CGFloat)x
+              keyWidth:(CGFloat)keyWidth
+                 width:(CGFloat)columnWidth
+               keyFont:(NSFont *)keyFont
+             rowHeight:(CGFloat)rowHeight
+           titleHeight:(CGFloat)titleHeight
+              titleGap:(CGFloat)titleGap {
+    NSTextField *title = [NSTextField labelWithString:sectionTitle];
+    title.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightSemibold];
+    title.textColor = KobaColorTextPrimary();
+    [title sizeToFit];
+    title.frame = NSMakeRect(x, topY - titleHeight, columnWidth, titleHeight);
+    [card addSubview:title];
+
+    for (NSUInteger i = 0; i < rows.count; i++) {
+        CGFloat y = topY - titleHeight - titleGap - (i + 1) * rowHeight;
+
+        NSTextField *key = [NSTextField labelWithString:rows[i][0]];
+        key.font = keyFont;
+        key.textColor = KobaColorTextPrimary();
+        key.frame = NSMakeRect(x, y, keyWidth, rowHeight);
+        [card addSubview:key];
+
+        NSTextField *desc = [NSTextField labelWithString:rows[i][1]];
+        desc.font = KobaHelpDescFont();
+        desc.textColor = KobaColorTextSecondary();
+        desc.lineBreakMode = NSLineBreakByTruncatingTail;
+        desc.frame = NSMakeRect(x + keyWidth + 12, y,
+                                columnWidth - keyWidth - 12, rowHeight);
+        [card addSubview:desc];
+    }
 }
 
 #pragma mark - Panes
