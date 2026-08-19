@@ -2,8 +2,16 @@
 #import "KobaColors.h"
 
 static const CGFloat KobaPaletteWidth = 600;
-static const CGFloat KobaPaletteRowHeight = 28;
-static const CGFloat KobaPalettePadding = 8;
+// Sized so row text carries the same breathing room vertically as the
+// shared text inset does horizontally (inset + ~14pt text + inset).
+static const CGFloat KobaPaletteRowHeight = 34;
+// One inset rules the query band vertically and all text horizontally, so
+// padding reads uniform. Rows span the full card width (no outer gutter),
+// with a small gap between the divider and the first row, mirrored at the
+// bottom.
+static const CGFloat KobaPaletteInset = 10;
+static const CGFloat KobaPaletteQueryHeight = 16;
+static const CGFloat KobaPaletteRowsGap = 6;
 static const NSInteger KobaPaletteMaxRows = 12;
 
 @implementation KobaCommandPalette {
@@ -50,9 +58,12 @@ static const NSInteger KobaPaletteMaxRows = 12;
                      maxLength:(NSInteger)maxLength
                           rows:(NSInteger)rows {
     CGFloat noteHeight = note != nil ? 22 : 0;
-    self = [super initWithFrame:NSMakeRect(0, 0, KobaPaletteWidth,
-                                           (rows + 1) * KobaPaletteRowHeight +
-                                           2 * KobaPalettePadding + noteHeight)];
+    // Query band (inset evenly around the text), divider, then rows flush
+    // against the divider and the card bottom. Any note gets its own gap.
+    CGFloat height = KobaPaletteInset + KobaPaletteQueryHeight + KobaPaletteInset + 1;
+    if (!textInput) height += rows * KobaPaletteRowHeight;
+    if (noteHeight > 0) height += 2 * KobaPaletteRowsGap + noteHeight;
+    self = [super initWithFrame:NSMakeRect(0, 0, KobaPaletteWidth, height)];
     if (!self) return nil;
 
     _titles = [titles copy];
@@ -136,20 +147,29 @@ static const NSInteger KobaPaletteMaxRows = 12;
         [self labelWithString:hasQuery ? _query : _placeholder
                          font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
                         color:hasQuery ? KobaColorTextPrimary() : KobaColorTextMuted()];
-    CGFloat queryY = NSHeight(self.bounds) - KobaPalettePadding - KobaPaletteRowHeight;
-    query.frame = NSMakeRect(KobaPalettePadding + 8,
-                             queryY + (KobaPaletteRowHeight - NSHeight(query.frame)) / 2,
-                             KobaPaletteWidth - 2 * (KobaPalettePadding + 8),
+    CGFloat queryY = NSHeight(self.bounds) - KobaPaletteInset - KobaPaletteQueryHeight;
+    query.frame = NSMakeRect(KobaPaletteInset,
+                             queryY + (KobaPaletteQueryHeight - NSHeight(query.frame)) / 2,
+                             KobaPaletteWidth - 2 * KobaPaletteInset,
                              NSHeight(query.frame));
     [self addSubview:query];
+
+    CGFloat dividerY = queryY - KobaPaletteInset - 1;
+    NSView *divider = [[NSView alloc] initWithFrame:
+        NSMakeRect(0, dividerY, KobaPaletteWidth, 1)];
+    divider.wantsLayer = YES;
+    divider.layer.backgroundColor = KobaColorBorder().CGColor;
+    [self addSubview:divider];
 
     if (_note != nil) {
         NSTextField *note = [NSTextField labelWithString:@""];
         note.attributedStringValue = _note;
         note.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [note sizeToFit];
-        note.frame = NSMakeRect(KobaPalettePadding + 8, KobaPalettePadding,
-                                KobaPaletteWidth - 2 * (KobaPalettePadding + 8),
+        note.frame = NSMakeRect(KobaPaletteInset,
+                                KobaPaletteRowsGap +
+                                (22 - NSHeight(note.frame)) / 2,
+                                KobaPaletteWidth - 2 * KobaPaletteInset,
                                 NSHeight(note.frame));
         [self addSubview:note];
     }
@@ -157,15 +177,18 @@ static const NSInteger KobaPaletteMaxRows = 12;
     // Text-input mode is just the query line and the note.
     if (_textInput) return;
 
+    // Rows sit flush against the divider.
+    CGFloat rowsTop = dividerY;
+
     if (_filtered.count == 0) {
         NSTextField *empty =
             [self labelWithString:_titles.count == 0 ? @"No commands available" : @"No matches"
                              font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
                             color:KobaColorTextMuted()];
-        empty.frame = NSMakeRect(KobaPalettePadding + 8,
-                                 queryY - KobaPaletteRowHeight +
+        empty.frame = NSMakeRect(KobaPaletteInset,
+                                 rowsTop - KobaPaletteRowHeight +
                                  (KobaPaletteRowHeight - NSHeight(empty.frame)) / 2,
-                                 KobaPaletteWidth - 2 * (KobaPalettePadding + 8),
+                                 KobaPaletteWidth - 2 * KobaPaletteInset,
                                  NSHeight(empty.frame));
         [self addSubview:empty];
         return;
@@ -181,10 +204,11 @@ static const NSInteger KobaPaletteMaxRows = 12;
         BOOL selected = (filteredIndex == _selectedRow);
         NSString *title = _titles[_filtered[(NSUInteger)filteredIndex].unsignedIntegerValue];
 
+        // Rows span the full card width; only the text is inset.
         NSView *rowView = [[NSView alloc] initWithFrame:
-            NSMakeRect(KobaPalettePadding,
-                       queryY - (row + 1) * KobaPaletteRowHeight,
-                       KobaPaletteWidth - 2 * KobaPalettePadding, KobaPaletteRowHeight)];
+            NSMakeRect(0,
+                       rowsTop - (row + 1) * KobaPaletteRowHeight,
+                       KobaPaletteWidth, KobaPaletteRowHeight)];
         rowView.wantsLayer = YES;
         rowView.layer.backgroundColor = selected
             ? KobaColorSelectedFill().CGColor
@@ -194,8 +218,10 @@ static const NSInteger KobaPaletteMaxRows = 12;
             [self labelWithString:title
                              font:[NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular]
                             color:selected ? KobaColorTextPrimary() : KobaColorTextSecondary()];
-        label.frame = NSMakeRect(8, (KobaPaletteRowHeight - NSHeight(label.frame)) / 2,
-                                 NSWidth(rowView.bounds) - 16, NSHeight(label.frame));
+        label.frame = NSMakeRect(KobaPaletteInset,
+                                 (KobaPaletteRowHeight - NSHeight(label.frame)) / 2,
+                                 NSWidth(rowView.bounds) - 2 * KobaPaletteInset,
+                                 NSHeight(label.frame));
         [rowView addSubview:label];
         [self addSubview:rowView];
     }
