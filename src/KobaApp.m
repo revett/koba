@@ -147,12 +147,83 @@ static bool koba_action(ghostty_app_t app,
     }
 }
 
+// Backslash-escapes shell-sensitive characters so a path survives being
+// pasted into a live terminal buffer. Mirrors Ghostty.Shell.escape.
+static NSString *KobaShellEscape(NSString *string) {
+    static NSArray<NSString *> *characters = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        // Backslash must come first so the escapes we add are not re-escaped.
+        characters = @[ @"\\", @" ", @"(", @")", @"[", @"]", @"{", @"}", @"<", @">", @"\"",
+                        @"'", @"`", @"!", @"#", @"$", @"&", @";", @"|", @"*", @"?", @"\t" ];
+    });
+
+    NSString *result = string;
+    for (NSString *character in characters) {
+        result = [result
+            stringByReplacingOccurrencesOfString:character
+                                      withString:[@"\\" stringByAppendingString:character]];
+    }
+    return result;
+}
+
+// Writes clipboard image data out as a PNG and returns its path. OSC 52
+// carries text only and has no way to describe a content type, so an image
+// can only reach the program reading the clipboard as a path it can open.
+// Screenshots (cmd+ctrl+shift+4) arrive as image data with no text, which is
+// why they otherwise paste as nothing.
+static NSString *KobaStageClipboardImage(NSPasteboard *pasteboard) {
+    NSData *png = [pasteboard dataForType:NSPasteboardTypePNG];
+    if (png == nil) {
+        NSData *tiff = [pasteboard dataForType:NSPasteboardTypeTIFF];
+        if (tiff == nil) return nil;
+        NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:tiff];
+        png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+        if (png == nil) return nil;
+    }
+
+    NSString *directory = KobaConfig.clipboardDirectory;
+    if (![NSFileManager.defaultManager createDirectoryAtPath:directory
+                                withIntermediateDirectories:YES
+                                                 attributes:nil
+                                                      error:nil]) return nil;
+
+    NSString *path = [directory stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"%@.png", NSUUID.UUID.UUIDString]];
+    if (![png writeToFile:path options:NSDataWritingAtomic error:nil]) return nil;
+    return path;
+}
+
+// What a clipboard read should return. Mirrors ghostty's own handler, which
+// prefers file paths over text, then falls back to staging image data. Unlike
+// ghostty we only read file URLs, because reading every URL class lets
+// AppKit coerce ordinary copied text into a URL.
+static NSString *KobaClipboardContents(void) {
+    NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+
+    NSArray<NSURL *> *urls = [pasteboard
+        readObjectsForClasses:@[ NSURL.class ]
+                      options:@{ NSPasteboardURLReadingFileURLsOnlyKey : @YES }];
+    if (urls.count > 0) {
+        NSMutableArray<NSString *> *paths = [NSMutableArray array];
+        for (NSURL *url in urls) [paths addObject:KobaShellEscape(url.path)];
+        return [paths componentsJoinedByString:@" "];
+    }
+
+    NSString *string = [pasteboard stringForType:NSPasteboardTypeString];
+    if (string != nil) return string;
+
+    return KobaStageClipboardImage(pasteboard);
+}
+
 static bool koba_read_clipboard(void *userdata, ghostty_clipboard_e location, void *state) {
     KobaSurfaceView *view = KobaViewFrom(userdata);
     if (view.surface == NULL) return false;
-    NSString *string = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
-    if (string == nil) return false;
-    ghostty_surface_complete_clipboard_request(view.surface, string.UTF8String, state, false);
+    NSString *contents = KobaClipboardContents();
+    // Returning false lets performable paste bindings fall through to the
+    // terminal instead of pasting nothing.
+    if (contents == nil) return false;
+    ghostty_surface_complete_clipboard_request(view.surface, contents.UTF8String, state, false);
     return true;
 }
 

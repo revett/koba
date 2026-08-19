@@ -20,6 +20,11 @@ static NSError *KobaConfigError(NSString *message) {
         stringByAppendingPathComponent:@".config/koba/state.json"];
 }
 
++ (NSString *)clipboardDirectory {
+    return [NSHomeDirectory()
+        stringByAppendingPathComponent:@".local/state/koba/clipboard"];
+}
+
 + (instancetype)loadWithError:(NSError **)error {
     NSFileManager *fm = NSFileManager.defaultManager;
     NSString *path = [self path];

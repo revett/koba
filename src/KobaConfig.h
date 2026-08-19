@@ -17,6 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Where workspace state is persisted between runs.
 + (NSString *)statePath;
 
+// Where clipboard images are staged so they can be pasted as a file path.
+// Outside ~/.config/koba because these are transient files, not config.
++ (NSString *)clipboardDirectory;
+
 @end
 
 NS_ASSUME_NONNULL_END
