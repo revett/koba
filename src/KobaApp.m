@@ -719,16 +719,21 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         }];
     }
 
-    [titles addObject:@"Switch Directory"];
+    [titles addObject:@"Workspace → Change Directory"];
     [actions addObject:^{
         [self showRepoPickerMandatory:NO withAction:^(NSString *directory) {
             [self switchWorkspaceDirectory:directory];
         }];
     }];
 
-    [titles addObject:@"Workspace → Amend Title"];
+    [titles addObject:@"Workspace → Update Title"];
     [actions addObject:^{
         [self showAmendTitleInput];
+    }];
+
+    [titles addObject:@"Window → Switch Workspace"];
+    [actions addObject:^{
+        [self showWorkspaceSwitcher];
     }];
 
     // Resetting the Agent pane is only offered from the Agent pane itself,
@@ -794,6 +799,27 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     [overlay addSubview:_palette];
     [content addSubview:overlay];
     _paletteOverlay = overlay;
+}
+
+// A palette listing every open workspace, as an alternative to cmd+[ and
+// cmd+1..9 navigation.
+- (void)showWorkspaceSwitcher {
+    NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    NSMutableArray<void (^)(void)> *actions = [NSMutableArray array];
+
+    for (NSUInteger i = 0; i < _workspaces.count; i++) {
+        KobaWorkspace *workspace = _workspaces[i];
+        NSString *title = workspace.customTitle != nil
+            ? [NSString stringWithFormat:@"#%lu %@ · %@",
+               i + 1, workspace.customTitle, workspace.directoryLabel]
+            : [NSString stringWithFormat:@"#%lu %@", i + 1, workspace.directoryLabel];
+        [titles addObject:title];
+
+        NSInteger index = (NSInteger)i;
+        [actions addObject:^{ [self selectWorkspaceAtIndex:index]; }];
+    }
+
+    [self presentPaletteWithTitles:titles actions:actions note:nil mandatory:NO blank:NO];
 }
 
 // Fits on the card's top line next to "#N".
