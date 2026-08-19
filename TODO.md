@@ -5,4 +5,5 @@
 - [ ] Emphemeral panes
 - [ ] Browser support
 - [ ] Create tasks from [Jacob's app](https://github.com/JacobCutts13/cockpit-docs)
-- [ ] Create and start work in new workspace
+- [ ] Create and start/plan work in new workspace
+- [ ] Emphemeral workspaces for just chatting

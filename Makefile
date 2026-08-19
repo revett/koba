@@ -31,12 +31,16 @@ LDFLAGS := $(LIBGHOSTTY) $(FRAMEWORKS) -lc++ -lz
 export ZIG_GLOBAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/global
 export ZIG_LOCAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/local
 
-.PHONY: app run clean clean-all libghostty
+.PHONY: app run install clean clean-all libghostty
 
 app: $(BIN)
 
 run: $(BIN)
 	$(BIN)
+
+install: $(BIN)
+	mkdir -p ~/Applications
+	rsync -a --delete $(APP)/ ~/Applications/Koba.app/
 
 # --- Toolchain + vendored ghostty ------------------------------------------
 
