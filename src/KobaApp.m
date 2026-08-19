@@ -411,7 +411,12 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     [content addSubview:_workspaceContainer];
 
     _window.contentView = content;
-    [_window center];
+
+    // Restore last session's size and position; center only on first run.
+    BOOL restored = [_window setFrameUsingName:@"KobaMain"];
+    _window.frameAutosaveName = @"KobaMain";
+    if (!restored) [_window center];
+
     [_window makeKeyAndOrderFront:nil];
 }
 
