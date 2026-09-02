@@ -3,6 +3,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Backslash-escapes shell-sensitive characters so a path survives being
+// pasted into a live terminal buffer. Mirrors Ghostty.Shell.escape.
+NSString *KobaShellEscape(NSString *string);
+
 // A single terminal pane. libghostty attaches its own rendering layer to
 // this view and drives all drawing; we forward input, size, and focus.
 @interface KobaSurfaceView : NSView

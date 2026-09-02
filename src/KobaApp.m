@@ -147,26 +147,6 @@ static bool koba_action(ghostty_app_t app,
     }
 }
 
-// Backslash-escapes shell-sensitive characters so a path survives being
-// pasted into a live terminal buffer. Mirrors Ghostty.Shell.escape.
-static NSString *KobaShellEscape(NSString *string) {
-    static NSArray<NSString *> *characters = nil;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        // Backslash must come first so the escapes we add are not re-escaped.
-        characters = @[ @"\\", @" ", @"(", @")", @"[", @"]", @"{", @"}", @"<", @">", @"\"",
-                        @"'", @"`", @"!", @"#", @"$", @"&", @";", @"|", @"*", @"?", @"\t" ];
-    });
-
-    NSString *result = string;
-    for (NSString *character in characters) {
-        result = [result
-            stringByReplacingOccurrencesOfString:character
-                                      withString:[@"\\" stringByAppendingString:character]];
-    }
-    return result;
-}
-
 // Writes clipboard image data out as a PNG and returns its path. OSC 52
 // carries text only and has no way to describe a content type, so an image
 // can only reach the program reading the clipboard as a path it can open.

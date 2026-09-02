@@ -31,6 +31,24 @@ static int KobaMomentum(NSEventPhase phase) {
     }
 }
 
+NSString *KobaShellEscape(NSString *string) {
+    static NSArray<NSString *> *characters = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        // Backslash must come first so the escapes we add are not re-escaped.
+        characters = @[ @"\\", @" ", @"(", @")", @"[", @"]", @"{", @"}", @"<", @">", @"\"",
+                        @"'", @"`", @"!", @"#", @"$", @"&", @";", @"|", @"*", @"?", @"\t" ];
+    });
+
+    NSString *result = string;
+    for (NSString *character in characters) {
+        result = [result
+            stringByReplacingOccurrencesOfString:character
+                                      withString:[@"\\" stringByAppendingString:character]];
+    }
+    return result;
+}
+
 // A bar this tall along the top edge marks the focused pane.
 static const CGFloat KobaFocusBorderHeight = 2;
 
@@ -74,6 +92,8 @@ static const CGFloat KobaFocusBorderHeight = 2;
     _focusBorder.layer.backgroundColor = KobaColorBorder().CGColor;
     _focusBorder.hidden = YES;
     [self addSubview:_focusBorder];
+
+    [self registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
 
     return self;
 }
@@ -382,6 +402,35 @@ static const CGFloat KobaFocusBorderHeight = 2;
     if (_surface == NULL) return;
     // Negative position tells ghostty the mouse left the surface.
     ghostty_surface_mouse_pos(_surface, -1, -1, KobaMods(event.modifierFlags));
+}
+
+#pragma mark - Drag and drop
+
+// Dropping files onto a pane types their shell-escaped paths, same as
+// pasting them. Mirrors the drag handling in Ghostty's reference app.
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    if (_surface == NULL) return NSDragOperationNone;
+    if ([sender.draggingPasteboard.types containsObject:NSPasteboardTypeFileURL]) {
+        return NSDragOperationCopy;
+    }
+    return NSDragOperationNone;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+    if (_surface == NULL) return NO;
+
+    NSArray<NSURL *> *urls = [sender.draggingPasteboard
+        readObjectsForClasses:@[ NSURL.class ]
+                      options:@{ NSPasteboardURLReadingFileURLsOnlyKey : @YES }];
+    if (urls.count == 0) return NO;
+
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    for (NSURL *url in urls) [paths addObject:KobaShellEscape(url.path)];
+    NSString *text = [paths componentsJoinedByString:@" "];
+
+    const char *utf8 = text.UTF8String;
+    ghostty_surface_text(_surface, utf8, strlen(utf8));
+    return YES;
 }
 
 - (void)scrollWheel:(NSEvent *)event {
