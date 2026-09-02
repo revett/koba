@@ -1189,6 +1189,20 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
     return repos;
 }
 
+// Strip positions ("#1") of the open workspaces living in the given
+// directory.
+- (NSArray<NSString *> *)openWorkspaceIndexesForDirectory:(NSString *)directory {
+    NSString *target = directory.stringByStandardizingPath;
+    NSMutableArray<NSString *> *indexes = [NSMutableArray array];
+    for (NSUInteger i = 0; i < _workspaces.count; i++) {
+        if ([_workspaces[i].persistedDirectory.stringByStandardizingPath
+                isEqualToString:target]) {
+            [indexes addObject:[NSString stringWithFormat:@"#%lu", i + 1]];
+        }
+    }
+    return indexes;
+}
+
 // Pick a git repository, then hand the chosen path to `perform`. At launch
 // (includeRestore) the previous session, if any, is offered as the first row.
 - (void)showRepoPickerMandatory:(BOOL)mandatory
@@ -1232,9 +1246,19 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
         for (NSString *repo in repos) {
             // "org/repo" form: the parent directory disambiguates repos with
             // the same name across workingDirectories.
-            [titles addObject:[NSString stringWithFormat:@"%@/%@",
+            NSString *title = [NSString stringWithFormat:@"%@/%@",
                 repo.stringByDeletingLastPathComponent.lastPathComponent,
-                repo.lastPathComponent]];
+                repo.lastPathComponent];
+
+            // Purely informational: picking the repo still opens a new
+            // workspace there.
+            NSArray<NSString *> *open = [self openWorkspaceIndexesForDirectory:repo];
+            if (open.count > 0) {
+                title = [title stringByAppendingFormat:@" · %@",
+                    [open componentsJoinedByString:@" "]];
+            }
+
+            [titles addObject:title];
             [actions addObject:^{ perform(repo); }];
         }
     }
