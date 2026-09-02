@@ -993,6 +993,14 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
         [actions addObject:^{
             [self showAmendTitleInput];
         }];
+
+        // Reordering needs somewhere to move to.
+        if (_workspaces.count > 1) {
+            [titles addObject:@"Workspace → Change Index"];
+            [actions addObject:^{
+                [self showChangeIndexPalette];
+            }];
+        }
     }
 
     [titles addObject:@"Window → Switch Workspace"];
@@ -1084,6 +1092,49 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     }
 
     [self presentPaletteWithTitles:titles actions:actions note:nil mandatory:NO blank:NO];
+}
+
+// A palette listing every other position in the strip, shown as the
+// workspace currently holding it. Picking one moves the selected workspace
+// there; everything in between shifts by one.
+- (void)showChangeIndexPalette {
+    if ([self selectedWorkspace] == nil || _workspaces.count < 2) return;
+
+    NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    NSMutableArray<void (^)(void)> *actions = [NSMutableArray array];
+
+    for (NSUInteger i = 0; i < _workspaces.count; i++) {
+        if ((NSInteger)i == _selectedIndex) continue;
+        KobaWorkspace *occupant = _workspaces[i];
+        NSString *title = occupant.customTitle != nil
+            ? [NSString stringWithFormat:@"#%lu %@ · %@",
+               i + 1, occupant.customTitle, occupant.directoryLabel]
+            : [NSString stringWithFormat:@"#%lu %@", i + 1, occupant.directoryLabel];
+        [titles addObject:title];
+
+        NSInteger target = (NSInteger)i;
+        [actions addObject:^{ [self moveSelectedWorkspaceToIndex:target]; }];
+    }
+
+    NSAttributedString *note = [[NSAttributedString alloc]
+        initWithString:@"The current workspace takes the chosen position"
+            attributes:@{
+                NSFontAttributeName :
+                    [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
+                NSForegroundColorAttributeName : KobaColorTextMuted(),
+            }];
+    [self presentPaletteWithTitles:titles actions:actions note:note mandatory:NO blank:NO];
+}
+
+- (void)moveSelectedWorkspaceToIndex:(NSInteger)target {
+    if (_selectedIndex < 0 || target == _selectedIndex ||
+        target < 0 || target >= (NSInteger)_workspaces.count) return;
+    KobaWorkspace *workspace = _workspaces[(NSUInteger)_selectedIndex];
+    [_workspaces removeObjectAtIndex:(NSUInteger)_selectedIndex];
+    // Inserting after the removal lands the workspace at exactly `target` in
+    // both directions.
+    [_workspaces insertObject:workspace atIndex:(NSUInteger)target];
+    [self selectWorkspaceAtIndex:target];
 }
 
 // Fits on the card's top line next to "#N".
