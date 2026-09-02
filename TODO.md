@@ -9,3 +9,4 @@
 - [ ] Emphemeral workspaces for just chatting
 - [ ] Hold state of workspace Claude session ID, and support resuming
 - [ ] Migrate to use worktrees
+- [ ] Support dropping file in Claude pane, and path to file appearing
