@@ -263,6 +263,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     void (^_paletteInputHandler)(NSString *);
     BOOL _paletteMandatory;
     KobaConfig *_kobaConfig;
+    NSTimer *_prPollTimer;
 }
 
 - (instancetype)init {
@@ -456,11 +457,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     }];
 
     // PRs open and close outside the app; poll to keep cards honest.
-    [NSTimer scheduledTimerWithTimeInterval:60
-                                    repeats:YES
-                                      block:^(NSTimer *timer) {
-        [self refreshAllPRs];
-    }];
+    [self schedulePRPoll];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
@@ -469,6 +466,9 @@ static void koba_close_surface(void *userdata, bool processAlive) {
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
     if (_ghosttyApp) ghostty_app_set_focus(_ghosttyApp, true);
+    // A PR is usually merged in the browser; catch up the moment the user
+    // comes back rather than waiting for the poll.
+    [self refreshAllPRs];
 }
 
 - (void)applicationDidResignActive:(NSNotification *)notification {
@@ -619,6 +619,7 @@ static void koba_close_surface(void *userdata, bool processAlive) {
     [_workspaceContainer addSubview:workspace.view];
 
     [self refreshStrip];
+    [self refreshPRForWorkspace:workspace];
 
     KobaSurfaceView *pane = workspace.focusedPane ?: workspace.panes.firstObject;
     if (pane != nil) [_window makeFirstResponder:pane];
@@ -789,7 +790,9 @@ static NSString *KobaGhPath(void) {
 // an open PR. Runs off the main thread; the strip refreshes when it lands.
 - (void)refreshPRForWorkspace:(KobaWorkspace *)workspace {
     NSString *gh = KobaGhPath();
-    NSString *pwd = workspace.terminalPane.pwd;
+    // The shell may not have reported a pwd yet (e.g. right after a restore);
+    // the directory the workspace opened in is just as good.
+    NSString *pwd = workspace.terminalPane.pwd ?: workspace.persistedDirectory;
     if (gh == nil || pwd.length == 0) return;
 
     __weak KobaWorkspace *weakWorkspace = workspace;
@@ -822,6 +825,7 @@ static NSString *KobaGhPath(void) {
             strongWorkspace.prLabel = label;
             strongWorkspace.ticketLabel = ticket;
             [self refreshStrip];
+            [self schedulePRPoll];
         });
     });
 }
@@ -879,6 +883,24 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
     for (KobaWorkspace *workspace in _workspaces) {
         [self refreshPRForWorkspace:workspace];
     }
+}
+
+// A card showing an open PR is the one that can go stale in a way the app
+// cannot observe locally (merged/closed on GitHub), so poll tightly while
+// any is showing and lazily otherwise. Rescheduled whenever a lookup lands,
+// so the interval tracks the labels on screen.
+- (void)schedulePRPoll {
+    [_prPollTimer invalidate];
+    BOOL anyOpenPR = NO;
+    for (KobaWorkspace *workspace in _workspaces) {
+        if (workspace.prLabel != nil) { anyOpenPR = YES; break; }
+    }
+    _prPollTimer = [NSTimer scheduledTimerWithTimeInterval:anyOpenPR ? 10 : 60
+                                                   repeats:NO
+                                                     block:^(NSTimer *timer) {
+        [self refreshAllPRs];
+        [self schedulePRPoll];
+    }];
 }
 
 - (void)refreshPRForWorkspaceContainingPane:(KobaSurfaceView *)view {
