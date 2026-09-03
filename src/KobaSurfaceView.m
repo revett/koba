@@ -89,7 +89,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
                                  NSWidth(self.bounds), KobaFocusBorderHeight)];
     _focusBorder.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     _focusBorder.wantsLayer = YES;
-    _focusBorder.layer.backgroundColor = KobaColorBorder().CGColor;
+    _focusBorder.layer.backgroundColor = KobaColorSelectedBorder().CGColor;
     _focusBorder.hidden = YES;
     [self addSubview:_focusBorder];
 
