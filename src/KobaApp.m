@@ -98,6 +98,9 @@ static bool koba_action(ghostty_app_t app,
                 ? [NSString stringWithUTF8String:action.action.pwd.pwd]
                 : nil;
             dispatch_async(dispatch_get_main_queue(), ^{
+                // Shells re-report the pwd on every prompt; only an actual
+                // move is worth a redraw and a round trip to GitHub.
+                if (pwd == view.pwd || [pwd isEqualToString:view.pwd]) return;
                 view.pwd = pwd;
                 [koba refreshStrip];
                 [koba refreshPRForWorkspaceContainingPane:view];
@@ -790,10 +793,20 @@ static NSString *KobaGhPath(void) {
 // an open PR. Runs off the main thread; the strip refreshes when it lands.
 - (void)refreshPRForWorkspace:(KobaWorkspace *)workspace {
     NSString *gh = KobaGhPath();
+    if (gh == nil) return;
+
     // The shell may not have reported a pwd yet (e.g. right after a restore);
     // the directory the workspace opened in is just as good.
     NSString *pwd = workspace.terminalPane.pwd ?: workspace.persistedDirectory;
-    if (gh == nil || pwd.length == 0) return;
+    if (pwd.length == 0) {
+        // Nothing to look up yet, so keep the poll alive for the next tick.
+        [self schedulePRPoll];
+        return;
+    }
+
+    // Read off the main thread's copy before the lookup leaves it.
+    BOOL repoURLCached = [workspace.repoURLDirectory isEqualToString:pwd];
+    NSString *cachedRepoURL = workspace.repoURL;
 
     __weak KobaWorkspace *weakWorkspace = workspace;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -813,7 +826,7 @@ static NSString *KobaGhPath(void) {
             url = parts[1];
         }
 
-        NSString *repoURL = KobaRunCommand(gh, pwd, @[
+        NSString *repoURL = repoURLCached ? cachedRepoURL : KobaRunCommand(gh, pwd, @[
             @"repo", @"view", @"--json", @"url", @"--jq", @".url",
         ]);
 
@@ -822,6 +835,7 @@ static NSString *KobaGhPath(void) {
             if (strongWorkspace == nil) return;
             strongWorkspace.prURL = url;
             strongWorkspace.repoURL = repoURL;
+            strongWorkspace.repoURLDirectory = pwd;
             strongWorkspace.prLabel = label;
             strongWorkspace.ticketLabel = ticket;
             [self refreshStrip];
@@ -886,20 +900,25 @@ static NSString *KobaRunCommand(NSString *gh, NSString *pwd, NSArray<NSString *>
 }
 
 // A card showing an open PR is the one that can go stale in a way the app
-// cannot observe locally (merged/closed on GitHub), so poll tightly while
-// any is showing and lazily otherwise. Rescheduled whenever a lookup lands,
-// so the interval tracks the labels on screen.
+// cannot observe locally (merged/closed on GitHub), so poll faster while the
+// selected card shows one and lazily otherwise. Only the selected workspace
+// is polled; the rest catch up when they are selected or when the app is
+// activated, which keeps a deep workspace strip off GitHub's rate limit.
+// Rescheduled whenever a lookup lands, so the interval tracks the card on
+// screen.
 - (void)schedulePRPoll {
     [_prPollTimer invalidate];
-    BOOL anyOpenPR = NO;
-    for (KobaWorkspace *workspace in _workspaces) {
-        if (workspace.prLabel != nil) { anyOpenPR = YES; break; }
-    }
-    _prPollTimer = [NSTimer scheduledTimerWithTimeInterval:anyOpenPR ? 10 : 60
+    NSTimeInterval interval = [self selectedWorkspace].prLabel != nil ? 30 : 300;
+    _prPollTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                    repeats:NO
                                                      block:^(NSTimer *timer) {
-        [self refreshAllPRs];
-        [self schedulePRPoll];
+        KobaWorkspace *selected = [self selectedWorkspace];
+        // From the overview there is no card to poll, so just tick again.
+        if (selected == nil) {
+            [self schedulePRPoll];
+            return;
+        }
+        [self refreshPRForWorkspace:selected];
     }];
 }
 
@@ -1270,8 +1289,8 @@ static const NSInteger KobaWorkspaceTitleMaxLength = 11;
 
 #pragma mark - Keybindings overlay
 
-// The user's global Claude skills (~/.claude/skills), as name/description
-// pairs read from each SKILL.md's frontmatter.
+// The user's global Claude skills (~/.claude/skills): directories holding a
+// SKILL.md, listed as "/name" with an empty description column.
 - (NSArray<NSArray<NSString *> *> *)claudeSkills {
     NSString *skillsDir = [NSHomeDirectory() stringByAppendingPathComponent:@".claude/skills"];
     NSFileManager *fm = NSFileManager.defaultManager;
@@ -1388,7 +1407,6 @@ static CGFloat KobaTextWidth(NSString *text, NSFont *font) {
     return width;
 }
 
-// Widest description of a section.
 - (CGFloat)helpDescWidth:(NSArray<NSArray<NSString *> *> *)rows {
     CGFloat width = 0;
     for (NSArray<NSString *> *row in rows) {

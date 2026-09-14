@@ -342,9 +342,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
 }
 
 - (void)mouseDown:(NSEvent *)event {
-    // Deliberately no makeFirstResponder: pane focus is keyboard-only
-    // (cmd+shift+[ and cmd+shift+]). Clicks still reach the surface for
-    // text selection.
+    // Deliberately no makeFirstResponder: pane focus is keyboard-only.
     [self sendMouseButton:GHOSTTY_MOUSE_PRESS button:GHOSTTY_MOUSE_LEFT event:event];
 }
 

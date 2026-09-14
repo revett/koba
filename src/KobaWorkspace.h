@@ -42,6 +42,10 @@ typedef NS_ENUM(NSInteger, KobaClaudeStatus) {
 // working directory, when there is one.
 @property (nonatomic, copy, nullable) NSString *repoURL;
 
+// The directory repoURL was resolved for, so the lookup (and its failure)
+// is not repeated until the shell moves elsewhere.
+@property (nonatomic, copy, nullable) NSString *repoURLDirectory;
+
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app;
 
 // Both panes spawn their shells in the given directory.

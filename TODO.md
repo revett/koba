@@ -9,3 +9,4 @@
 - [ ] Emphemeral workspaces for just chatting
 - [ ] Hold state of workspace Claude session ID, and support resuming
 - [ ] Migrate to use worktrees
+- [ ] Track status of GitHub PR becoming green
