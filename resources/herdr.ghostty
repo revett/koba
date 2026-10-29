@@ -1,0 +1,10 @@
+# Ghostty config bundled into Herdr.app, loaded after the user's own.
+# Unbinding a chord stops ghostty acting on it, so it reaches herdr.
+
+keybind = cmd+n=unbind
+keybind = cmd+w=unbind
+keybind = cmd+[=unbind
+keybind = cmd+]=unbind
+keybind = cmd+shift+[=unbind
+keybind = cmd+shift+]=unbind
+keybind = cmd+shift+p=unbind

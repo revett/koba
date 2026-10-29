@@ -1,0 +1,51 @@
+# Herdr config for Herdr.app. Symlinked to ~/.config/herdr/config.toml.
+# Reference: https://herdr.dev/docs/configuration/
+
+onboarding = false
+
+[theme]
+name = "tokyo-night"
+auto_switch = false
+
+[ui]
+# Keyboard only.
+mouse_capture = false
+# Spaces are one tab, split in two; tabs only show once there's a second.
+hide_tab_bar_when_single_tab = true
+
+# Herdr.app reports $ticket and $pr (scripts/herdr-pr-status).
+[ui.sidebar.spaces]
+rows = [["state_icon", "workspace"], ["branch", "git_status"], ["$ticket", "$pr"]]
+
+[ui.toast]
+delivery = "terminal"
+
+[keys]
+previous_workspace = "cmd+["
+next_workspace = "cmd+]"
+cycle_pane_previous = "cmd+shift+["
+cycle_pane_next = "cmd+shift+]"
+
+[[keys.command]]
+key = "cmd+n"
+type = "popup"
+command = "~/projects/github.com/revett/koba/scripts/herdr-new-space"
+description = "new space (fresh worktree for git repos)"
+
+[[keys.command]]
+key = "cmd+w"
+type = "popup"
+command = "~/projects/github.com/revett/koba/scripts/herdr-close-space"
+description = "close space (and its worktree, if it holds no work)"
+
+[[keys.command]]
+key = "cmd+shift+p"
+type = "popup"
+command = "~/projects/github.com/revett/koba/scripts/herdr-palette"
+description = "command palette"
+
+[[keys.command]]
+key = "cmd+shift+/"
+type = "popup"
+command = "~/projects/github.com/revett/koba/scripts/herdr-keys"
+description = "show these keybindings"

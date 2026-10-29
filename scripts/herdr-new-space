@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Picks a project directory with fzf and opens it as a new herdr space, split
+# Koba style. Git repositories get a fresh worktree on the default branch
+# (ctrl-o opens the repository itself instead). Bound to cmd+n as a popup in
+# config/herdr.toml.
+set -euo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+base="$HOME/projects/github.com"
+roots=("$base/revett" "$base/team-plain")
+
+# Worktrees whose space disappeared without cmd+w (herdr's own menu, a crash):
+# throw away the safe ones, offer the rest so nothing is stranded.
+# An unreadable list would make every worktree look abandoned: bail instead.
+list=$("$herdr" workspace list)
+jq -e '.result.workspaces | type == "array"' <<< "$list" > /dev/null
+open_paths=$(jq -r '.result.workspaces[].worktree.checkout_path // empty' <<< "$list")
+stranded=()
+for dir in "$WORKTREE_ROOT"/*/*/; do
+  dir="${dir%/}"
+  [[ -d "$dir" ]] || continue
+  grep -qxF "$dir" <<< "$open_paths" && continue
+  if [[ -z "$(unsafe_reason "$dir")" ]]; then
+    discard_worktree "$dir"
+  else
+    stranded+=("! ${dir#"$WORKTREE_ROOT"/} · unsaved work")
+  fi
+done
+empty_trash
+
+# Direct children only; not every project is a git repository.
+picked=$(
+  {
+    for entry in "${stranded[@]+"${stranded[@]}"}"; do echo "$entry"; done
+    for root in "${roots[@]}"; do
+      for dir in "$root"/*/; do
+        [[ -d "$dir" ]] && echo "${dir#"$base"/}"
+      done
+    done | sed 's#/$##'
+  } | fzf --prompt 'space > ' --reverse --expect ctrl-o \
+    --header $'\nenter   New space using a worktree\nctrl-o  New space\n '
+) || exit 0
+
+key=$(head -1 <<< "$picked")
+choice=$(tail -1 <<< "$picked")
+[[ -n "$choice" ]] || exit 0
+
+split() {
+  "$herdr" pane split "$1" --direction right --cwd "$2" --no-focus > /dev/null
+}
+
+# A stranded worktree: reopen it so the work can be dealt with.
+if [[ "$choice" == "! "* ]]; then
+  dir="$WORKTREE_ROOT/${choice#"! "}"
+  dir="${dir%% · *}"
+  repo=$(repo_of "$dir")
+  pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$(basename "$dir")" --focus \
+    | jq -r '.result.root_pane.pane_id')
+  split "$pane" "$dir"
+  exit 0
+fi
+
+repo="$base/$choice"
+name=$(basename "$choice")
+
+if [[ "$key" == "ctrl-o" ]] || ! git -C "$repo" rev-parse --git-dir > /dev/null 2>&1; then
+  pane=$("$herdr" workspace create --cwd "$repo" --label "$name" --focus \
+    | jq -r '.result.root_pane.pane_id')
+  split "$pane" "$repo"
+  exit 0
+fi
+
+read -rp '  name (blank for random) > ' label
+label=${label:-"space-$(openssl rand -hex 2)"}
+slug=$(tr '[:upper:]' '[:lower:]' <<< "$label" | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')
+dir="$WORKTREE_ROOT/$name/$slug"
+while [[ -e "$dir" ]]; do dir="$WORKTREE_ROOT/$name/$slug-$(openssl rand -hex 2)"; done
+echo
+
+# Detached on the freshly fetched default branch; /do's gcb creates the branch.
+start=$(git -C "$repo" symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null || echo origin/main)
+step "Fetching latest ${start#origin/} from GitHub" git -C "$repo" fetch --quiet origin "${start#origin/}" \
+  || printf '    offline? using the last fetched state\n'
+mkdir -p "$(dirname "$dir")"
+step "Checking out a fresh copy of $name" git -C "$repo" worktree add --quiet --detach "$dir" "$start"
+
+pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$label" --focus \
+  | jq -r '.result.root_pane.pane_id')
+split "$pane" "$dir"
+printf '  ✓ Done\n'

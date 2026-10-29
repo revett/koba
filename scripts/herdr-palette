@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Koba's command palette for the active herdr space. Bound to cmd+shift+p as
+# a popup in config/herdr.toml.
+set -euo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+id="$HERDR_ACTIVE_WORKSPACE_ID"
+cwd=$(terminal_pane "$id" | cut -f2)
+
+# Shows a message until any key, so it outlives the popup.
+fail() {
+  printf '\n  %s\n\n  any key to close' "$1"
+  read_key > /dev/null
+  exit 1
+}
+
+workspaces() {
+  "$herdr" workspace list | jq -r '.result.workspaces[] | "\(.number)\t\(.label)\t\(.workspace_id)"'
+}
+
+branch=$(git -C "$cwd" branch --show-current 2> /dev/null || true)
+ticket=$(ticket_from_branch "$branch")
+in_repo=$(git -C "$cwd" rev-parse --is-inside-work-tree 2> /dev/null || true)
+
+choice=$(
+  {
+    [[ -n "$branch" ]] && echo 'GitHub → Open PR'
+    [[ -n "$in_repo" ]] && echo 'GitHub → Open Repo'
+    [[ -n "$ticket" ]] && echo "Linear → Open Ticket ($ticket)"
+    echo 'Workspace → Update Title'
+    echo 'Window → Switch Workspace'
+  } | fzf --prompt '> ' --reverse
+) || exit 0
+
+case "$choice" in
+  'GitHub → Open PR')
+    (cd "$cwd" && gh pr view --web > /dev/null 2>&1) || fail "no PR for $branch"
+    ;;
+  'GitHub → Open Repo')
+    (cd "$cwd" && gh repo view --web > /dev/null 2>&1) || fail 'not a GitHub repository'
+    ;;
+  'Linear → Open Ticket'*)
+    # linear.app resolves /issue/<key> to the signed-in workspace.
+    open "https://linear.app/issue/$ticket"
+    ;;
+  'Workspace → Update Title')
+    read -rp 'title > ' title
+    [[ -n "$title" ]] && "$herdr" workspace rename "$id" "$title" > /dev/null
+    ;;
+  'Window → Switch Workspace')
+    target=$(workspaces | fzf --prompt 'space > ' --reverse --with-nth 1,2 --delimiter '\t') || exit 0
+    "$herdr" workspace focus "$(cut -f3 <<< "$target")" > /dev/null
+    ;;
+esac

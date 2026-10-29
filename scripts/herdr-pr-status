@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Reports each space's ticket (from its branch) and open PR to the herdr
+# sidebar as the $ticket and $pr tokens. Bundled into Herdr.app, which runs it
+# every few seconds: spaces whose branch hasn't changed are skipped, so GitHub
+# is only asked on a branch change, or for every space with --full (which the
+# app passes every couple of minutes, since PRs merge and close remotely).
+set -uo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+full=false
+[[ "${1:-}" == "--full" ]] && full=true
+
+# Last reported "<id>\t<branch>\t<pr>" per space.
+cache="${TMPDIR:-/tmp}/herdr-pr-status.cache"
+touch "$cache"
+next=$(mktemp)
+
+# Like Koba, a space's branch is wherever its left hand pane is. One snapshot
+# covers every space, so a run that changes nothing stays cheap.
+"$herdr" api snapshot | jq -r '
+  .result.snapshot as $s
+  | $s.workspaces[]
+  | .workspace_id as $id | .active_tab_id as $tab
+  | ([$s.panes[] | select(.tab_id == $tab)][0].cwd // empty) as $cwd
+  | [$id, $cwd] | @tsv' \
+  | while IFS=$'\t' read -r id dir; do
+    branch=""
+    [[ -n "$dir" ]] && branch=$(git -C "$dir" branch --show-current 2> /dev/null)
+    IFS=$'\t' read -r _ last_branch last_pr <<< "$(grep "^$id"$'\t' "$cache")"
+
+    pr="$last_pr"
+    if $full || [[ "$branch" != "$last_branch" ]]; then
+      pr=""
+      if [[ -n "$branch" ]]; then
+        pr=$(cd "$dir" && gh pr view "$branch" --json number,state \
+          --jq 'select(.state == "OPEN") | "PR #\(.number)"' 2> /dev/null)
+      fi
+      # An empty value clears the token.
+      "$herdr" workspace report-metadata "$id" --source koba-status \
+        --token "ticket=$(ticket_from_branch "$branch")" --token "pr=$pr" > /dev/null
+    fi
+    printf '%s\t%s\t%s\n' "$id" "$branch" "$pr" >> "$next"
+  done
+
+# Spaces that closed drop out of the cache.
+mv "$next" "$cache"

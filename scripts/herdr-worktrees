@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Read only report on the worktrees behind herdr spaces: what's on disk, what
+# git knows about, and anything that disagrees. Changes nothing.
+set -uo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+open_paths=$("$herdr" workspace list 2> /dev/null \
+  | jq -r '.result.workspaces[].worktree.checkout_path // empty')
+
+echo "worktrees in $WORKTREE_ROOT"
+found=false
+for dir in "$WORKTREE_ROOT"/*/*/; do
+  dir="${dir%/}"
+  [[ -d "$dir" ]] || continue
+  found=true
+  if grep -qxF "$dir" <<< "$open_paths"; then
+    state="open in a space"
+  elif [[ -n "$(unsafe_reason "$dir")" ]]; then
+    state="closed, UNSAVED WORK (cmd+n offers it)"
+  else
+    state="closed, clean (next cmd+n removes it)"
+  fi
+  branch=$(git -C "$dir" branch --show-current 2> /dev/null)
+  printf '  %-40s %-14s %s\n' "${dir#"$WORKTREE_ROOT"/}" "${branch:-no branch}" "$state"
+done
+$found || echo "  none"
+
+trash=$(find "$WORKTREE_ROOT/.trash" -mindepth 1 -maxdepth 1 2> /dev/null | wc -l | tr -d ' ')
+echo
+echo "trash: $trash waiting to be deleted"
+
+# Every repo with a worktree folder, plus each repo under the picker roots
+# that git says has linked worktrees.
+echo
+echo "git's view"
+problems=0
+for repo in "$HOME"/projects/github.com/{revett,team-plain}/*/; do
+  repo="${repo%/}"
+  [[ -d "$repo/.git" ]] || continue
+  linked=$(git -C "$repo" worktree list --porcelain | grep -c '^worktree ')
+  ((linked > 1)) || continue
+  echo "  ${repo##*/}"
+  git -C "$repo" worktree list | tail -n +2 | sed 's/^/    /'
+  stale=$(git -C "$repo" worktree list --porcelain | grep -c '^prunable')
+  if ((stale > 0)); then
+    echo "    ! $stale registered but missing on disk"
+    problems=$((problems + stale))
+  fi
+done
+
+for dir in "$WORKTREE_ROOT"/*/*/; do
+  dir="${dir%/}"
+  [[ -d "$dir" ]] || continue
+  if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
+    echo "  ! ${dir#"$WORKTREE_ROOT"/} is on disk but git doesn't know it"
+    problems=$((problems + 1))
+  fi
+done
+
+echo
+((problems == 0)) && echo "all consistent" || echo "$problems problem(s) above"

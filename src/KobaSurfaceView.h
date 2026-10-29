@@ -17,11 +17,20 @@ NSString *KobaShellEscape(NSString *string);
 // shell integration). Nil until the first prompt.
 @property (nonatomic, copy, nullable) NSString *pwd;
 
+// Whether a bar along the top edge marks this pane while focused. Defaults
+// to YES; pointless when a window holds a single pane.
+@property (nonatomic) BOOL showsFocusBorder;
+
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app;
 
 // Spawns the surface's shell in the given directory instead of the default.
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app
                   workingDirectory:(nullable NSString *)workingDirectory;
+
+// Runs the given command instead of the default shell.
+- (instancetype)initWithGhosttyApp:(ghostty_app_t)app
+                  workingDirectory:(nullable NSString *)workingDirectory
+                           command:(nullable NSString *)command;
 
 // Frees the underlying ghostty surface. The view is inert afterwards.
 - (void)closeSurface;

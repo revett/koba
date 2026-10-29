@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Closes the active herdr space. A worktree created by herdr-new-space is
+# removed with it, unless it holds work: then closing is blocked until the
+# work is dealt with or explicitly discarded. Bound to cmd+w as a popup in
+# config/herdr.toml.
+set -euo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+id="$HERDR_ACTIVE_WORKSPACE_ID"
+dir=$("$herdr" workspace get "$id" | jq -r '.result.workspace.worktree.checkout_path // empty')
+
+if [[ -z "$dir" ]] || ! is_managed "$dir"; then
+  "$herdr" workspace close "$id" > /dev/null
+  exit 0
+fi
+
+close_and_discard() {
+  discard_worktree "$dir"
+  "$herdr" workspace close "$id" > /dev/null
+  empty_trash
+}
+
+printf '\n  … checking for unsaved work'
+reason=$(unsafe_reason "$dir")
+printf '\r\033[K'
+
+if [[ -z "$reason" ]]; then
+  close_and_discard
+  exit 0
+fi
+
+printf '  this space has work that would be lost:\n\n'
+sed 's/^/  /' <<< "$reason"
+printf '\n  esc  back to the space\n  d    discard it and close\n'
+
+if [[ "$(read_key)" == "d" ]]; then
+  close_and_discard
+fi

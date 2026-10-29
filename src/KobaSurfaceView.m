@@ -63,6 +63,12 @@ static const CGFloat KobaFocusBorderHeight = 2;
 
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app
                   workingDirectory:(NSString *)workingDirectory {
+    return [self initWithGhosttyApp:app workingDirectory:workingDirectory command:nil];
+}
+
+- (instancetype)initWithGhosttyApp:(ghostty_app_t)app
+                  workingDirectory:(NSString *)workingDirectory
+                           command:(NSString *)command {
     // Non-zero initial frame so the renderer's layer has non-zero bounds.
     self = [super initWithFrame:NSMakeRect(0, 0, 800, 600)];
     if (!self) return nil;
@@ -75,6 +81,9 @@ static const CGFloat KobaFocusBorderHeight = 2;
     cfg.context = GHOSTTY_SURFACE_CONTEXT_WINDOW;
     if (workingDirectory.length > 0) {
         cfg.working_directory = workingDirectory.UTF8String;
+    }
+    if (command.length > 0) {
+        cfg.command = command.UTF8String;
     }
 
     _surface = ghostty_surface_new(app, &cfg);
@@ -92,6 +101,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
     _focusBorder.layer.backgroundColor = KobaColorSelectedBorder().CGColor;
     _focusBorder.hidden = YES;
     [self addSubview:_focusBorder];
+    _showsFocusBorder = YES;
 
     [self registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
 
@@ -141,7 +151,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
     if (focused == _focused) return;
     _focused = focused;
     ghostty_surface_set_focus(_surface, focused);
-    _focusBorder.hidden = !focused;
+    _focusBorder.hidden = !(focused && _showsFocusBorder);
 }
 
 #pragma mark - Geometry
