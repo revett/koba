@@ -8,8 +8,9 @@ name = "tokyo-night"
 auto_switch = false
 
 [ui]
-# Keyboard only.
-mouse_capture = false
+# Herdr has to receive the wheel to scroll a pane's history; without capture,
+# the terminal turns scrolling into arrow keys (command history).
+mouse_capture = true
 # Spaces are one tab, split in two; tabs only show once there's a second.
 hide_tab_bar_when_single_tab = true
 # Room for "ARI-2308 #12380" under an indented worktree space.

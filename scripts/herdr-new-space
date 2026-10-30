@@ -78,9 +78,15 @@ while [[ -e "$dir" ]]; do dir="$WORKTREE_ROOT/$name/$slug-$(openssl rand -hex 2)
 echo
 
 # Detached on the freshly fetched default branch; /do's gcb creates the branch.
-start=$(git -C "$repo" symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null || echo origin/main)
-step "Fetching latest ${start#origin/} from GitHub" git -C "$repo" fetch --quiet origin "${start#origin/}" \
-  || printf '    offline? using the last fetched state\n'
+# A repo with no remote (e.g. chats, kept local on purpose) starts from its
+# own HEAD instead.
+if git -C "$repo" remote get-url origin > /dev/null 2>&1; then
+  start=$(git -C "$repo" symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null || echo origin/main)
+  step "Fetching latest ${start#origin/} from GitHub" git -C "$repo" fetch --quiet origin "${start#origin/}" \
+    || printf '    offline? using the last fetched state\n'
+else
+  start=HEAD
+fi
 mkdir -p "$(dirname "$dir")"
 step "Checking out a fresh copy of $name" git -C "$repo" worktree add --quiet --detach "$dir" "$start"
 
