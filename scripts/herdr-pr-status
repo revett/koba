@@ -5,7 +5,7 @@
 # runs it every few seconds: spaces whose branch hasn't changed are skipped, so
 # GitHub is only asked on a branch change, or for every space with --full
 # (which the app passes every couple of minutes, since PRs merge and close
-# remotely).
+# remotely). It also names each pane's space for the agents list (see below).
 set -uo pipefail
 source "$(dirname "$0")/herdr-lib.sh"
 
@@ -17,14 +17,16 @@ cache="${TMPDIR:-/tmp}/herdr-pr-status.cache"
 touch "$cache"
 next=$(mktemp)
 
+snapshot=$("$herdr" api snapshot)
+
 # Like Koba, a space's branch is wherever its left hand pane is. One snapshot
 # covers every space, so a run that changes nothing stays cheap.
-"$herdr" api snapshot | jq -r '
+jq -r '
   .result.snapshot as $s
   | $s.workspaces[]
   | .workspace_id as $id | .active_tab_id as $tab
   | ([$s.panes[] | select(.tab_id == $tab)][0].cwd // empty) as $cwd
-  | [$id, $cwd] | @tsv' \
+  | [$id, $cwd] | @tsv' <<< "$snapshot" \
   | while IFS=$'\t' read -r id dir; do
     branch=""
     [[ -n "$dir" ]] && branch=$(git -C "$dir" branch --show-current 2> /dev/null)
@@ -48,3 +50,26 @@ next=$(mktemp)
 
 # Spaces that closed drop out of the cache.
 mv "$next" "$cache"
+
+# Each pane also gets a $space token naming its space with the repo in front
+# for worktrees ("services/roadmap"), since the agents list otherwise shows
+# several identical "on-demand-sr" rows. Reported when new or changed.
+pane_cache="${TMPDIR:-/tmp}/herdr-pane-space.cache"
+touch "$pane_cache"
+pane_next=$(mktemp)
+
+jq -r '
+  .result.snapshot as $s
+  | ($s.workspaces | map({
+      key: .workspace_id,
+      value: (if .worktree.is_linked_worktree then "\(.worktree.repo_name)/\(.label)" else .label end)
+    }) | from_entries) as $names
+  | $s.panes[] | [.pane_id, $names[.workspace_id]] | @tsv' <<< "$snapshot" \
+  | while IFS=$'\t' read -r pane space; do
+    if $full || ! grep -qxF "$pane"$'\t'"$space" "$pane_cache"; then
+      "$herdr" pane report-metadata "$pane" --source koba-status --token "space=$space" > /dev/null
+    fi
+    printf '%s\t%s\n' "$pane" "$space" >> "$pane_next"
+  done
+
+mv "$pane_next" "$pane_cache"

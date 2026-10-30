@@ -16,9 +16,10 @@ fail() {
 }
 
 # Every space as "<id>\t<line>", laid out like the sidebar: repos with their
-# worktree spaces nested underneath (a worktree whose repo has no space of its
-# own is prefixed with the repo name), the current space marked, and each
-# space's ticket and PR dimmed after its name.
+# worktree spaces nested underneath, the current space marked, and each
+# space's ticket and PR dimmed after its name. Worktrees carry their repo name
+# ("docs/on-demand-sr", dimmed when nested) since fzf only searches what it
+# shows, so searching a repo finds its worktrees too.
 space_tree() {
   "$herdr" workspace list | jq -r '
     [.result.workspaces[] | {
@@ -41,8 +42,10 @@ space_tree() {
       )
     | . as [$space, $prefix]
     | "\($space.id)\t\(if $space.focused then "● " else "  " end)"
-      + (if $prefix | test("^[├└]") then "  " else "" end)
-      + "\($prefix)\($space.label)"
+      + (if $prefix | test("^[├└]")
+         then "  \($prefix)\u001b[2m\($space.repo_name)/\u001b[0m"
+         else $prefix end)
+      + $space.label
       + (if $space.status != "" then "  \u001b[2m\($space.status)\u001b[0m" else "" end)'
 }
 
