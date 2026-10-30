@@ -43,7 +43,7 @@ LDFLAGS := $(LIBGHOSTTY) $(FRAMEWORKS) -lc++ -lz
 export ZIG_GLOBAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/global
 export ZIG_LOCAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/local
 
-.PHONY: app run install herdr run-herdr install-herdr clean clean-all libghostty
+.PHONY: app run install herdr run-herdr install-herdr reload-herdr clean clean-all libghostty
 
 app: $(BIN)
 
@@ -72,6 +72,14 @@ install-herdr: $(HERDR_BIN)
 	codesign --force --sign - ~/Applications/Herdr.app
 	touch ~/Applications/Herdr.app
 	$(LSREGISTER) -f ~/Applications/Herdr.app
+
+# Applies config/herdr.toml and relaunches the app with the latest build.
+# Quitting only detaches; spaces and agents keep running in the server.
+reload-herdr: install-herdr
+	herdr server reload-config
+	pkill -x herdr-app || true
+	while pgrep -x herdr-app > /dev/null; do sleep 0.1; done
+	open ~/Applications/Herdr.app
 
 # --- Toolchain + vendored ghostty ------------------------------------------
 
@@ -131,7 +139,7 @@ $(HERDR_BIN): $(HERDR_SRCS) $(HERDR_HDRS) resources/Herdr-Info.plist resources/h
 	iconutil -c icns build/herdr.iconset -o $(HERDR_APP)/Contents/Resources/herdr.icns
 	rsync -a --delete $(GHOSTTY_OUT)/share/ghostty/ $(HERDR_APP)/Contents/Resources/ghostty/
 	rsync -a --delete $(GHOSTTY_OUT)/share/terminfo/ $(HERDR_APP)/Contents/Resources/terminfo/
-	clang $(CFLAGS) $(HERDR_SRCS) $(LDFLAGS) -o $(HERDR_BIN)
+	clang $(CFLAGS) $(HERDR_SRCS) $(LDFLAGS) -framework WebKit -o $(HERDR_BIN)
 	codesign --force --sign - $(HERDR_APP)
 
 clean:

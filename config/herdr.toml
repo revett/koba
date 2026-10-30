@@ -12,10 +12,12 @@ auto_switch = false
 mouse_capture = false
 # Spaces are one tab, split in two; tabs only show once there's a second.
 hide_tab_bar_when_single_tab = true
+# Room for "ARI-2308 #12380" under an indented worktree space.
+sidebar_width = 32
 
-# Herdr.app reports $ticket and $pr (scripts/herdr-pr-status).
+# Herdr.app reports $status, e.g. "ARI-2308 #12380" (scripts/herdr-pr-status).
 [ui.sidebar.spaces]
-rows = [["state_icon", "workspace"], ["branch", "git_status"], ["$ticket", "$pr"]]
+rows = [["state_icon", "workspace"], ["branch", "git_status"], ["$status"]]
 
 [ui.toast]
 delivery = "terminal"
@@ -25,6 +27,7 @@ previous_workspace = "cmd+["
 next_workspace = "cmd+]"
 cycle_pane_previous = "cmd+shift+["
 cycle_pane_next = "cmd+shift+]"
+switch_tab = "cmd+1..9"
 
 [[keys.command]]
 key = "cmd+n"

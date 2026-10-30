@@ -2,6 +2,8 @@
 #import "KobaClipboard.h"
 #import "KobaColors.h"
 #import "KobaSurfaceView.h"
+#import <Carbon/Carbon.h>
+#import <WebKit/WebKit.h>
 
 // Finds the herdr binary without starting a shell; an interactive shell
 // would draw its prompt before herdr takes over the screen. Apps launched
@@ -90,6 +92,9 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
 
 #pragma mark - HerdrApp
 
+@interface HerdrApp () <WKNavigationDelegate>
+@end
+
 @implementation HerdrApp {
     ghostty_config_t _config;
     NSWindow *_window;
@@ -99,6 +104,10 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
     NSTimer *_statusTimer;
     NSDate *_lastFullRefresh;
     BOOL _fullRefreshDue;
+    NSView *_content;
+    WKWebView *_page;
+    NSURL *_pendingPage;
+    id _keyMonitor;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -156,6 +165,14 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
     ghostty_app_set_focus(_ghosttyApp, NSApp.isActive);
 
     [self createWindow];
+
+    // Esc closes an open page; the page would otherwise swallow it.
+    _keyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                                        handler:^NSEvent *(NSEvent *event) {
+        if (self->_page == nil || event.keyCode != kVK_Escape) return event;
+        [self closePage];
+        return nil;
+    }];
 
     // The sidebar's ticket and PR tokens follow each space's branch, which
     // changes inside herdr where the app can't see it, so poll. Ticks are
@@ -221,7 +238,11 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
     _surfaceView.showsFocusBorder = NO;
     _surfaceView.frame = frame;
     _surfaceView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _window.contentView = _surfaceView;
+
+    // Pages opened in the app sit above the terminal in this container.
+    _content = [[NSView alloc] initWithFrame:frame];
+    [_content addSubview:_surfaceView];
+    _window.contentView = _content;
 
     // Restore last session's size and position; center only on first run.
     BOOL restored = [_window setFrameUsingName:@"HerdrMain"];
@@ -230,6 +251,61 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
 
     [_window makeKeyAndOrderFront:nil];
     [_window makeFirstResponder:_surfaceView];
+
+    if (_pendingPage) {
+        [self showPage:_pendingPage];
+        _pendingPage = nil;
+    }
+}
+
+#pragma mark - Pages
+
+// `open -a Herdr page.html` lands here, possibly before the window exists.
+- (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
+    if (_window == nil) {
+        _pendingPage = urls.lastObject;
+        return;
+    }
+    [self showPage:urls.lastObject];
+}
+
+// Shows a page over the terminal, replacing any open one. Esc closes it.
+- (void)showPage:(NSURL *)url {
+    if (_page == nil) {
+        _page = [[WKWebView alloc] initWithFrame:_content.bounds
+                                   configuration:[[WKWebViewConfiguration alloc] init]];
+        _page.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        _page.navigationDelegate = self;
+        [_content addSubview:_page];
+    }
+    if (url.isFileURL) {
+        // Relative assets next to the file (images, CSS) load too.
+        [_page loadFileURL:url allowingReadAccessToURL:url.URLByDeletingLastPathComponent];
+    } else {
+        [_page loadRequest:[NSURLRequest requestWithURL:url]];
+    }
+    [NSApp activateIgnoringOtherApps:YES];
+    [_window makeKeyAndOrderFront:nil];
+    [_window makeFirstResponder:_page];
+}
+
+- (void)closePage {
+    [_page removeFromSuperview];
+    _page = nil;
+    [_window makeFirstResponder:_surfaceView];
+}
+
+// Links out of the page open in the default browser rather than replacing it.
+- (void)webView:(WKWebView *)webView
+    decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
+                    decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+    NSURL *url = navigationAction.request.URL;
+    if (navigationAction.navigationType == WKNavigationTypeLinkActivated && !url.isFileURL) {
+        [NSWorkspace.sharedWorkspace openURL:url];
+        decisionHandler(WKNavigationActionPolicyCancel);
+        return;
+    }
+    decisionHandler(WKNavigationActionPolicyAllow);
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
