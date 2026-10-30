@@ -347,7 +347,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
 - (void)sendMouseButton:(ghostty_input_mouse_state_e)state
                  button:(ghostty_input_mouse_button_e)button
                   event:(NSEvent *)event {
-    if (_surface == NULL) return;
+    if (_surface == NULL || _mouseScrollOnly) return;
     ghostty_surface_mouse_button(_surface, state, button, KobaMods(event.modifierFlags));
 }
 
@@ -379,7 +379,11 @@ static const CGFloat KobaFocusBorderHeight = 2;
 }
 
 - (void)sendMousePos:(NSEvent *)event {
-    if (_surface == NULL) return;
+    if (_surface == NULL || _mouseScrollOnly) return;
+    [self sendPointerPosition:event];
+}
+
+- (void)sendPointerPosition:(NSEvent *)event {
     NSPoint pos = [self convertPoint:event.locationInWindow fromView:nil];
     // ghostty expects a top-left origin.
     ghostty_surface_mouse_pos(_surface, pos.x, self.frame.size.height - pos.y,
@@ -407,7 +411,7 @@ static const CGFloat KobaFocusBorderHeight = 2;
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    if (_surface == NULL) return;
+    if (_surface == NULL || _mouseScrollOnly) return;
     // Negative position tells ghostty the mouse left the surface.
     ghostty_surface_mouse_pos(_surface, -1, -1, KobaMods(event.modifierFlags));
 }
@@ -443,6 +447,9 @@ static const CGFloat KobaFocusBorderHeight = 2;
 
 - (void)scrollWheel:(NSEvent *)event {
     if (_surface == NULL) return;
+    // The terminal scrolls whatever is under the pointer, so it needs the
+    // position even when hovering isn't forwarded.
+    if (_mouseScrollOnly) [self sendPointerPosition:event];
     double x = event.scrollingDeltaX;
     double y = event.scrollingDeltaY;
     BOOL precision = event.hasPreciseScrollingDeltas;

@@ -236,6 +236,8 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
         return;
     }
     _surfaceView.showsFocusBorder = NO;
+    // Keyboard only, but the wheel still scrolls pane history.
+    _surfaceView.mouseScrollOnly = YES;
     _surfaceView.frame = frame;
     _surfaceView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 

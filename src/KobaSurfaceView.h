@@ -21,6 +21,10 @@ NSString *KobaShellEscape(NSString *string);
 // to YES; pointless when a window holds a single pane.
 @property (nonatomic) BOOL showsFocusBorder;
 
+// Forward only the scroll wheel to the terminal: clicks, drags and hovering
+// are dropped. Defaults to NO.
+@property (nonatomic) BOOL mouseScrollOnly;
+
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app;
 
 // Spawns the surface's shell in the given directory instead of the default.
