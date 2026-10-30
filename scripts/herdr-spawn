@@ -46,4 +46,6 @@ right=$("$herdr" pane split "$left" --direction right --cwd "$dir" --no-focus | 
 "$herdr" pane run "$left" "git checkout -q --detach && git branch -q -D $branch && clear" > /dev/null
 "$herdr" pane run "$right" "cc opus \"\$(< $(printf '%q' "$prompt"))\"" > /dev/null
 
+sort_spaces
+
 echo "spawned \"$label\" in $dir"

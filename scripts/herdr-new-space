@@ -57,6 +57,7 @@ if [[ "$choice" == "! "* ]]; then
   pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$(basename "$dir")" --focus \
     | jq -r '.result.root_pane.pane_id')
   split "$pane" "$dir"
+  sort_spaces
   exit 0
 fi
 
@@ -93,4 +94,5 @@ step "Checking out a fresh copy of $name" git -C "$repo" worktree add --quiet --
 pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$label" --focus \
   | jq -r '.result.root_pane.pane_id')
 split "$pane" "$dir"
+sort_spaces
 printf '  ✓ Done\n'

@@ -14,6 +14,37 @@ slugify() {
   tr '[:upper:]' '[:lower:]' <<< "$1" | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//'
 }
 
+# Sends one raw socket API request, for methods the CLI doesn't wrap. The API
+# is newline delimited JSON.
+herdr_request() {
+  python3 -c '
+import json, os, socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.connect(os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.config/herdr/herdr.sock"))
+s.sendall(json.dumps({"id": "koba", "method": sys.argv[1], "params": json.loads(sys.argv[2])}).encode() + b"\n")
+print(s.makefile().readline(), end="")
+' "$1" "$2"
+}
+
+# Orders each repository's worktree spaces A-Z, straight after the repository's
+# own space. herdr appends new ones, which scatters /spawn's siblings.
+sort_spaces() {
+  "$herdr" workspace list | jq -c '
+    (.result.workspaces | sort_by(.number)) as $all
+    | $all[] | select(.worktree != null and (.worktree.is_linked_worktree | not)) as $root
+    | [$all[] | select(.worktree.is_linked_worktree and .worktree.repo_root == $root.worktree.repo_root)] as $kids
+    | select($kids | length > 1)
+    | ($kids | map(.workspace_id)) as $kid_ids
+    | [$all[] | .workspace_id | select(. as $id | $kid_ids | index($id) | not)] as $rest
+    | {
+        workspace_ids: ($kids | sort_by(.label | ascii_downcase) | map(.workspace_id)),
+        before_workspace_id: $rest[($rest | index($root.workspace_id)) + 1]
+      }' \
+    | while read -r params; do
+      herdr_request workspace.move_block "$params" > /dev/null
+    done
+}
+
 # The main checkout a worktree belongs to.
 repo_of() {
   dirname "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)"
