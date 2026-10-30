@@ -71,10 +71,10 @@ if [[ "$key" == "ctrl-o" ]] || ! git -C "$repo" rev-parse --git-dir > /dev/null 
 fi
 
 read -rp '  name (blank for random) > ' label
-label=${label:-"space-$(openssl rand -hex 2)"}
-slug=$(tr '[:upper:]' '[:lower:]' <<< "$label" | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//')
-dir="$WORKTREE_ROOT/$name/$slug"
-while [[ -e "$dir" ]]; do dir="$WORKTREE_ROOT/$name/$slug-$(openssl rand -hex 2)"; done
+# Spaces are named by slug ("On demand SR" becomes "on-demand-sr").
+label=$(slugify "${label:-"space-$(openssl rand -hex 2)"}")
+dir="$WORKTREE_ROOT/$name/$label"
+while [[ -e "$dir" ]]; do dir="$WORKTREE_ROOT/$name/$label-$(openssl rand -hex 2)"; done
 echo
 
 # Detached on the freshly fetched default branch; /do's gcb creates the branch.

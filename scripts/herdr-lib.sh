@@ -9,6 +9,11 @@ is_managed() {
   [[ "$1" == "$WORKTREE_ROOT"/* ]]
 }
 
+# "On demand SR" → "on-demand-sr": how spaces and their worktrees are named.
+slugify() {
+  tr '[:upper:]' '[:lower:]' <<< "$1" | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//'
+}
+
 # The main checkout a worktree belongs to.
 repo_of() {
   dirname "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)"

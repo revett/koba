@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Hands work to a new agent: a fresh worktree space on the caller's repository,
+# split Koba style, with Claude (via `cc`) started on the given prompt file.
+# Run by an agent from inside a herdr pane, e.g. through the /spawn skill:
+#
+#   herdr-spawn <name> <prompt-file>
+#
+# The space is named "<parent>-<name>" (a slug, like every space) so a child
+# reads as one in the sidebar and in cmd+k. Agents run sandboxed and can't
+# write outside their own checkout, so herdr's server creates the worktree, and
+# the new space's own shells (which aren't sandboxed) do the rest.
+set -euo pipefail
+source "$(dirname "$0")/herdr-lib.sh"
+
+if [[ $# -ne 2 || ! -f "$2" ]]; then
+  echo "usage: herdr-spawn <name> <prompt-file>" >&2
+  exit 2
+fi
+name="$1"
+prompt=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
+
+parent=$("$herdr" pane current | jq -r '.result.pane.workspace_id')
+parent_label=$("$herdr" workspace get "$parent" | jq -r '.result.workspace.label')
+repo=$(repo_of "$PWD")
+repo_name=$(basename "$repo")
+
+label=$(slugify "$parent_label-$name")
+dir="$WORKTREE_ROOT/$repo_name/$label"
+while [[ -e "$dir" ]]; do dir="$WORKTREE_ROOT/$repo_name/$label-$(openssl rand -hex 2)"; done
+
+# Same starting point as cmd+n: the freshly fetched default branch, or the last
+# fetched state when offline.
+start=HEAD
+if git -C "$repo" remote get-url origin > /dev/null 2>&1; then
+  start=$(git -C "$repo" symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null || echo origin/main)
+  git -C "$repo" fetch --quiet origin "${start#origin/}" 2> /dev/null || true
+fi
+
+# herdr always creates a branch for a new worktree; it's swapped for a detached
+# HEAD below, as cmd+n's are, so /do's gcb names the real one.
+branch="spawn/$(openssl rand -hex 4)"
+left=$("$herdr" worktree create --cwd "$repo" --path "$dir" --branch "$branch" --base "$start" \
+  --label "$label" --no-focus | jq -r '.result.root_pane.pane_id')
+right=$("$herdr" pane split "$left" --direction right --cwd "$dir" --no-focus | jq -r '.result.pane.pane_id')
+
+"$herdr" pane run "$left" "git checkout -q --detach && git branch -q -D $branch && clear" > /dev/null
+"$herdr" pane run "$right" "cc opus \"\$(< $(printf '%q' "$prompt"))\"" > /dev/null
+
+echo "spawned \"$label\" in $dir"

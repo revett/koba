@@ -13,8 +13,10 @@ auto_switch = false
 mouse_capture = true
 # Spaces are one tab, split in two; tabs only show once there's a second.
 hide_tab_bar_when_single_tab = true
-# Room for "ARI-2308 #12380" under an indented worktree space.
-sidebar_width = 32
+# Pinned at herdr's maximum (it otherwise scales with workspace names), for
+# "ARI-2308 #12380" under an indented worktree space and long child names.
+sidebar_width = 36
+sidebar_min_width = 36
 # Agents ordered by what needs attention: blocked, done, working, idle.
 agent_panel_sort = "priority"
 
