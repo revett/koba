@@ -17,7 +17,8 @@ fail() {
 
 # Every space as "<id>\t<line>", laid out like the sidebar: repos with their
 # worktree spaces nested underneath, the current space marked, and each
-# space's ticket and PR dimmed after its name. Worktrees carry their repo name
+# space's agent state (coloured as in the agents list) and its ticket and PR
+# after its name. Worktrees carry their repo name
 # ("docs/on-demand-sr", dimmed when nested) since fzf only searches what it
 # shows, so searching a repo finds its worktrees too.
 space_tree() {
@@ -25,6 +26,12 @@ space_tree() {
     [.result.workspaces[] | {
       id: .workspace_id, label, focused,
       status: (.tokens.status // ""),
+      agent: ({
+        blocked: "\u001b[38;2;247;118;142mblocked",
+        done: "\u001b[38;2;158;206;106mdone",
+        working: "\u001b[38;2;122;162;247mworking",
+        idle: "\u001b[38;2;115;122;162midle"
+      }[.agent_status // ""] // ""),
       linked: (.worktree.is_linked_worktree // false),
       repo: (.worktree.repo_root // ""),
       repo_name: (.worktree.repo_name // "")
@@ -46,6 +53,7 @@ space_tree() {
          then "  \($prefix)\u001b[2m\($space.repo_name)/\u001b[0m"
          else $prefix end)
       + $space.label
+      + (if $space.agent != "" then "  \($space.agent)\u001b[0m" else "" end)
       + (if $space.status != "" then "  \u001b[2m\($space.status)\u001b[0m" else "" end)'
 }
 
