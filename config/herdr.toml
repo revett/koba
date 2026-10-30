@@ -20,7 +20,7 @@ agent_panel_sort = "priority"
 
 # Herdr.app reports $status, e.g. "ARI-2308 #12380" (scripts/herdr-pr-status).
 [ui.sidebar.spaces]
-rows = [["state_icon", "workspace"], ["branch", "git_status"], ["$status"]]
+rows = [["state_icon", "workspace"], ["branch"], ["$status"]]
 
 # Herdr.app reports $space, e.g. "services/roadmap" (scripts/herdr-pr-status).
 # State as a word rather than a dot, coloured only when it needs attention,
