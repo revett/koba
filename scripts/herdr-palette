@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Koba's command palette for the active herdr space. Bound to cmd+shift+p as
-# a popup in config/herdr.toml.
+# a popup in config/herdr.toml; `herdr-palette switch` (cmd+k) opens the space
+# switcher directly.
 set -euo pipefail
 source "$(dirname "$0")/herdr-lib.sh"
 
@@ -14,9 +15,49 @@ fail() {
   exit 1
 }
 
-workspaces() {
-  "$herdr" workspace list | jq -r '.result.workspaces[] | "\(.number)\t\(.label)\t\(.workspace_id)"'
+# Every space as "<id>\t<line>", laid out like the sidebar: repos with their
+# worktree spaces nested underneath (a worktree whose repo has no space of its
+# own is prefixed with the repo name), the current space marked, and each
+# space's ticket and PR dimmed after its name.
+space_tree() {
+  "$herdr" workspace list | jq -r '
+    [.result.workspaces[] | {
+      id: .workspace_id, label, focused,
+      status: (.tokens.status // ""),
+      linked: (.worktree.is_linked_worktree // false),
+      repo: (.worktree.repo_root // ""),
+      repo_name: (.worktree.repo_name // "")
+    }] as $spaces
+    | [$spaces[] | select(.linked | not)] as $roots
+    | ($roots | map(.repo)) as $root_repos
+    | (
+        ($roots[] as $root
+          | [$spaces[] | select(.linked and .repo != "" and .repo == $root.repo)] as $kids
+          | [$root, ""],
+            ($kids | to_entries[]
+              | [.value, (if .key == ($kids | length) - 1 then "└ " else "├ " end)])),
+        ($spaces[] | select(.linked and ([.repo] | inside($root_repos) | not))
+          | [., "\(.repo_name)/"])
+      )
+    | . as [$space, $prefix]
+    | "\($space.id)\t\(if $space.focused then "● " else "  " end)"
+      + (if $prefix | test("^[├└]") then "  " else "" end)
+      + "\($prefix)\($space.label)"
+      + (if $space.status != "" then "  \u001b[2m\($space.status)\u001b[0m" else "" end)'
 }
+
+switch_space() {
+  local target
+  target=$(space_tree | fzf --prompt 'space > ' --reverse --ansi --no-sort \
+    --delimiter '\t' --with-nth 2) || exit 0
+  "$herdr" workspace focus "$(cut -f1 <<< "$target")" > /dev/null
+}
+
+# cmd+k goes straight to the space switcher.
+if [[ "${1:-}" == "switch" ]]; then
+  switch_space
+  exit 0
+fi
 
 branch=$(git -C "$cwd" branch --show-current 2> /dev/null || true)
 ticket=$(ticket_from_branch "$branch")
@@ -48,7 +89,6 @@ case "$choice" in
     [[ -n "$title" ]] && "$herdr" workspace rename "$id" "$title" > /dev/null
     ;;
   'Window → Switch Workspace')
-    target=$(workspaces | fzf --prompt 'space > ' --reverse --with-nth 1,2 --delimiter '\t') || exit 0
-    "$herdr" workspace focus "$(cut -f3 <<< "$target")" > /dev/null
+    switch_space
     ;;
 esac

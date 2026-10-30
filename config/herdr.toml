@@ -48,6 +48,12 @@ command = "~/projects/github.com/revett/koba/scripts/herdr-palette"
 description = "command palette"
 
 [[keys.command]]
+key = "cmd+k"
+type = "popup"
+command = "~/projects/github.com/revett/koba/scripts/herdr-palette switch"
+description = "switch space"
+
+[[keys.command]]
 key = "cmd+shift+/"
 type = "popup"
 command = "~/projects/github.com/revett/koba/scripts/herdr-keys"

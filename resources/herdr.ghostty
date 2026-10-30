@@ -26,3 +26,4 @@ keybind = cmd+8=unbind
 keybind = cmd+digit_8=unbind
 keybind = cmd+9=unbind
 keybind = cmd+digit_9=unbind
+keybind = cmd+k=unbind
