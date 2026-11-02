@@ -13,25 +13,11 @@ NSString *KobaShellEscape(NSString *string);
 
 @property (nonatomic, readonly) ghostty_surface_t surface;
 
-// Current working directory as reported by the shell (OSC 7 via ghostty's
-// shell integration). Nil until the first prompt.
-@property (nonatomic, copy, nullable) NSString *pwd;
-
-// Whether a bar along the top edge marks this pane while focused. Defaults
-// to YES; pointless when a window holds a single pane.
-@property (nonatomic) BOOL showsFocusBorder;
-
 // Forward only the scroll wheel to the terminal: clicks, drags and hovering
 // are dropped. Defaults to NO.
 @property (nonatomic) BOOL mouseScrollOnly;
 
-- (instancetype)initWithGhosttyApp:(ghostty_app_t)app;
-
-// Spawns the surface's shell in the given directory instead of the default.
-- (instancetype)initWithGhosttyApp:(ghostty_app_t)app
-                  workingDirectory:(nullable NSString *)workingDirectory;
-
-// Runs the given command instead of the default shell.
+// Runs the given command in the given directory.
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app
                   workingDirectory:(nullable NSString *)workingDirectory
                            command:(nullable NSString *)command;

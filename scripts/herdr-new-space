@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Picks a project directory with fzf and opens it as a new herdr space, split
-# Koba style. Git repositories get a fresh worktree on the default branch
+# into a terminal (left) and agent (right) pane. Git repositories get a fresh worktree on the default branch
 # (ctrl-o opens the repository itself instead). Bound to cmd+n as a popup in
 # config/herdr.toml.
 set -euo pipefail

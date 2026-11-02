@@ -13,8 +13,19 @@ static NSMenu *HerdrMainMenu(void) {
     return menubar;
 }
 
+// Launched from inside a herdr pane (e.g. `make reload-herdr`), the app
+// inherits that pane's HERDR_* variables and herdr refuses to start as a
+// nested client. The app is always the outermost client, so drop them.
+static void HerdrClearInheritedEnvironment(void) {
+    for (NSString *name in NSProcessInfo.processInfo.environment) {
+        if ([name hasPrefix:@"HERDR_"]) unsetenv(name.UTF8String);
+    }
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
+        HerdrClearInheritedEnvironment();
+
         // libghostty locates terminfo, shell integration, and themes through
         // this. Set before ghostty_init.
         NSString *resources =

@@ -19,7 +19,7 @@ next=$(mktemp)
 
 snapshot=$("$herdr" api snapshot)
 
-# Like Koba, a space's branch is wherever its left hand pane is. One snapshot
+# A space's branch is wherever its left hand pane is. One snapshot
 # covers every space, so a run that changes nothing stays cheap.
 jq -r '
   .result.snapshot as $s

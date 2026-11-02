@@ -51,7 +51,7 @@ repo_of() {
 }
 
 # The left hand (terminal) pane of a space's active tab, as "<id>\t<cwd>".
-# Like Koba, its live directory decides the space's branch, ticket and PR.
+# Its live directory decides the space's branch, ticket and PR.
 terminal_pane() {
   local tab
   tab=$("$herdr" workspace get "$1" | jq -r '.result.workspace.active_tab_id')
@@ -109,7 +109,7 @@ if [[ -t 0 ]]; then
   trap 'printf "\n  something went wrong, any key to close"; read_key > /dev/null' ERR
 fi
 
-# Ticket key at the start of a branch's last path component, as in Koba:
+# Ticket key at the start of a branch's last path component:
 # "ari-123-fix" and "alice/ARI-123" both give ARI-123.
 ticket_from_branch() {
   sed -nE 's#^([A-Za-z]{2,10})-([0-9]{1,6})([-_].*)?$#\1-\2#p' <<< "${1##*/}" \

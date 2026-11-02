@@ -1,5 +1,4 @@
 #import "KobaClipboard.h"
-#import "KobaConfig.h"
 #import "KobaSurfaceView.h"
 
 // Writes clipboard image data out as a PNG and returns its path. OSC 52
@@ -17,7 +16,8 @@ static NSString *KobaStageClipboardImage(NSPasteboard *pasteboard) {
         if (png == nil) return nil;
     }
 
-    NSString *directory = KobaConfig.clipboardDirectory;
+    NSString *directory = [NSHomeDirectory()
+        stringByAppendingPathComponent:@".local/state/koba/clipboard"];
     if (![NSFileManager.defaultManager createDirectoryAtPath:directory
                                 withIntermediateDirectories:YES
                                                  attributes:nil

@@ -25,7 +25,7 @@ for command in keys.get("command", []):
     rows.append((command["key"], command.get("description", command["command"])))
 rows += APP_BINDINGS
 
-# Claude skills, as in Koba's help overlay: directories holding a SKILL.md.
+# Claude skills: directories holding a SKILL.md.
 skills_dir = os.path.expanduser("~/.claude/skills")
 skills = sorted(
     name for name in os.listdir(skills_dir)

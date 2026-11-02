@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Hands work to a new agent: a fresh worktree space on the caller's repository,
-# split Koba style, with Claude (via `cc`) started on the given prompt file.
+# split into terminal (left) and agent (right) panes, with Claude (via `cc`)
+# started on the given prompt file.
 # Run by an agent from inside a herdr pane, e.g. through the /spawn skill:
 #
 #   herdr-spawn <name> <prompt-file>

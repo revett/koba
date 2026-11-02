@@ -1,6 +1,5 @@
 #import "HerdrApp.h"
 #import "KobaClipboard.h"
-#import "KobaColors.h"
 #import "KobaSurfaceView.h"
 #import <Carbon/Carbon.h>
 #import <WebKit/WebKit.h>
@@ -92,6 +91,17 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
 
 #pragma mark - HerdrApp
 
+// Slightly darker than the terminal so the pane reads as content. Falls
+// back to Tailwind stone-950 when the theme has no background.
+static NSColor *HerdrWindowBackground(ghostty_config_t config) {
+    ghostty_config_color_s bg = {0x0c, 0x0a, 0x09};
+    ghostty_config_get(config, &bg, "background", strlen("background"));
+    return [NSColor colorWithSRGBRed:bg.r * 0.6 / 255.0
+                               green:bg.g * 0.6 / 255.0
+                                blue:bg.b * 0.6 / 255.0
+                               alpha:1];
+}
+
 @interface HerdrApp () <WKNavigationDelegate>
 @end
 
@@ -134,15 +144,6 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
     NSString *bundled = [NSBundle.mainBundle pathForResource:@"herdr" ofType:@"ghostty"];
     if (bundled) ghostty_config_load_file(_config, bundled.fileSystemRepresentation);
     ghostty_config_finalize(_config);
-
-    ghostty_config_color_s bg = {0};
-    ghostty_config_color_s fg = {0};
-    if (ghostty_config_get(_config, &bg, "background", strlen("background")) &&
-        ghostty_config_get(_config, &fg, "foreground", strlen("foreground"))) {
-        KobaColorsInitialize(
-            [NSColor colorWithSRGBRed:bg.r / 255.0 green:bg.g / 255.0 blue:bg.b / 255.0 alpha:1],
-            [NSColor colorWithSRGBRed:fg.r / 255.0 green:fg.g / 255.0 blue:fg.b / 255.0 alpha:1]);
-    }
 
     ghostty_runtime_config_s runtime = {
         .userdata = (__bridge void *)self,
@@ -225,7 +226,7 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
     _window.delegate = self;
     _window.tabbingMode = NSWindowTabbingModeDisallowed;
     _window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    _window.backgroundColor = KobaColorAppBackground();
+    _window.backgroundColor = HerdrWindowBackground(_config);
 
     _surfaceView = [[KobaSurfaceView alloc] initWithGhosttyApp:_ghosttyApp
                                               workingDirectory:NSHomeDirectory()
@@ -235,7 +236,6 @@ static void herdr_close_surface(void *userdata, bool processAlive) {
         [NSApp terminate:nil];
         return;
     }
-    _surfaceView.showsFocusBorder = NO;
     // Keyboard only, but the wheel still scrolls pane history.
     _surfaceView.mouseScrollOnly = YES;
     _surfaceView.frame = frame;

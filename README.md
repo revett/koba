@@ -1,28 +1,24 @@
-# Koba
+# Herdr.app
 
-A macOS workbench for supervising parallel agents 🪚
+A macOS app for supervising parallel agents with [herdr](https://herdr.dev) 🪚
 
-```bash
-// TODO: Add demo video
-```
-
-## Why?
-
-Moving to [cmux](https://github.com/manaflow-ai/cmux) in 2025 hugely increased my productivity by
-allowing me to complete work in parallel across multiple agent sessions. However, I found the
-experience of configuring it to my exact workflow to be cumbersome.
-
-Given it is built on top of [Ghostty](https://github.com/ghostty-org/ghostty) and our ability as
-engineers to build opinionated, personal tools has greatly increased, I decided to build **Koba** as
-an experiment.
-
-Some of the main differences are:
+A single window running a herdr client on a [Ghostty](https://github.com/ghostty-org/ghostty)
+surface, plus the scripts and config that shape my workflow:
 
 1. No mouse usage, only an opinionated set of minimal keybindings and commands
-1. Workspaces consist of only two vertical panes
-1. Each workspace is to be used for a single stream of work
-1. Workspace information is displayed in a custom tab bar
+1. Each space is a single stream of work, split into a terminal and an agent pane
+1. Git repositories open as a fresh worktree per space
+1. Spaces show their Linear ticket and GitHub PR in the sidebar
+
+## Usage
+
+```bash
+make install-herdr   # build and install to ~/Applications/Herdr.app
+make reload-herdr    # apply config/herdr.toml and relaunch with the latest build
+```
+
+`config/herdr.toml` is symlinked to `~/.config/herdr/config.toml`.
 
 ## License
 
-Koba is released under the [GPL v3](https://opensource.org/license/gpl-3-0) license.
+Released under the [GPL v3](https://opensource.org/license/gpl-3-0) license.

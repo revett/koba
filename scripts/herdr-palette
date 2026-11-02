@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Koba's command palette for the active herdr space. Bound to cmd+shift+p as
+# Command palette for the active herdr space. Bound to cmd+shift+p as
 # a popup in config/herdr.toml; `herdr-palette switch` (cmd+k) opens the space
 # switcher directly.
 set -euo pipefail

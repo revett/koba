@@ -1,5 +1,4 @@
 #import "KobaSurfaceView.h"
-#import "KobaColors.h"
 #import <QuartzCore/QuartzCore.h>
 #import <IOKit/hidsystem/IOLLEvent.h>
 
@@ -49,21 +48,8 @@ NSString *KobaShellEscape(NSString *string) {
     return result;
 }
 
-// A bar this tall along the top edge marks the focused pane.
-static const CGFloat KobaFocusBorderHeight = 2;
-
 @implementation KobaSurfaceView {
     BOOL _focused;
-    NSView *_focusBorder;
-}
-
-- (instancetype)initWithGhosttyApp:(ghostty_app_t)app {
-    return [self initWithGhosttyApp:app workingDirectory:nil];
-}
-
-- (instancetype)initWithGhosttyApp:(ghostty_app_t)app
-                  workingDirectory:(NSString *)workingDirectory {
-    return [self initWithGhosttyApp:app workingDirectory:workingDirectory command:nil];
 }
 
 - (instancetype)initWithGhosttyApp:(ghostty_app_t)app
@@ -92,16 +78,6 @@ static const CGFloat KobaFocusBorderHeight = 2;
     // Surfaces start focused inside ghostty; unfocus so only the pane that
     // actually becomes first responder shows a blinking cursor.
     ghostty_surface_set_focus(_surface, false);
-
-    _focusBorder = [[NSView alloc]
-        initWithFrame:NSMakeRect(0, NSHeight(self.bounds) - KobaFocusBorderHeight,
-                                 NSWidth(self.bounds), KobaFocusBorderHeight)];
-    _focusBorder.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-    _focusBorder.wantsLayer = YES;
-    _focusBorder.layer.backgroundColor = KobaColorSelectedBorder().CGColor;
-    _focusBorder.hidden = YES;
-    [self addSubview:_focusBorder];
-    _showsFocusBorder = YES;
 
     [self registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
 
@@ -151,7 +127,6 @@ static const CGFloat KobaFocusBorderHeight = 2;
     if (focused == _focused) return;
     _focused = focused;
     ghostty_surface_set_focus(_surface, focused);
-    _focusBorder.hidden = !(focused && _showsFocusBorder);
 }
 
 #pragma mark - Geometry
