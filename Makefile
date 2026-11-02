@@ -29,7 +29,7 @@ LDFLAGS := $(LIBGHOSTTY) $(FRAMEWORKS) -lc++ -lz
 export ZIG_GLOBAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/global
 export ZIG_LOCAL_CACHE_DIR := $(CURDIR)/vendor/zig-cache/local
 
-.PHONY: herdr run-herdr install-herdr reload-herdr clean clean-all libghostty
+.PHONY: herdr run-herdr install-herdr link-config reload-herdr clean clean-all libghostty
 
 herdr: $(HERDR_BIN)
 
@@ -44,6 +44,17 @@ install-herdr: $(HERDR_BIN)
 	codesign --force --sign - ~/Applications/Herdr.app
 	touch ~/Applications/Herdr.app
 	$(LSREGISTER) -f ~/Applications/Herdr.app
+	$(MAKE) link-config
+
+# herdr's config is a symlink to config/herdr.toml, so edits herdr makes
+# itself (e.g. agent sort order) land in the repo too. A real file already
+# there is kept as config.toml.bak.
+link-config:
+	mkdir -p ~/.config/herdr
+	if [ -f ~/.config/herdr/config.toml ] && [ ! -L ~/.config/herdr/config.toml ]; then \
+		mv ~/.config/herdr/config.toml ~/.config/herdr/config.toml.bak; \
+	fi
+	ln -sfn $(CURDIR)/config/herdr.toml ~/.config/herdr/config.toml
 
 # Applies config/herdr.toml and relaunches the app with the latest build.
 # Quitting only detaches; spaces and agents keep running in the server.

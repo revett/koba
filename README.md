@@ -17,7 +17,9 @@ make install-herdr   # build and install to ~/Applications/Herdr.app
 make reload-herdr    # apply config/herdr.toml and relaunch with the latest build
 ```
 
-`config/herdr.toml` is symlinked to `~/.config/herdr/config.toml`.
+`make install-herdr` symlinks `~/.config/herdr/config.toml` to `config/herdr.toml`, backing up any
+existing file as `config.toml.bak`. Clone to `~/projects/github.com/revett/koba`, as the config
+runs its scripts from there.
 
 ## License
 
