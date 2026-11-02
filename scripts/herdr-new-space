@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Picks a project directory with fzf and opens it as a new herdr space, split
-# into a terminal (left) and agent (right) pane. Git repositories get a fresh worktree on the default branch
-# (ctrl-o opens the repository itself instead). Bound to cmd+n as a popup in
-# config/herdr.toml.
+# into a terminal (left) and agent (right) pane. Git repositories get a fresh
+# worktree on the default branch with Claude (via `cc`) started on the right
+# (ctrl-o opens the repository itself instead, with a plain shell). Bound to
+# cmd+n as a popup in config/herdr.toml.
 set -euo pipefail
 source "$(dirname "$0")/herdr-lib.sh"
 
@@ -45,8 +46,9 @@ key=$(head -1 <<< "$picked")
 choice=$(tail -1 <<< "$picked")
 [[ -n "$choice" ]] || exit 0
 
+# Prints the new right hand pane's id.
 split() {
-  "$herdr" pane split "$1" --direction right --cwd "$2" --no-focus > /dev/null
+  "$herdr" pane split "$1" --direction right --cwd "$2" --no-focus | jq -r '.result.pane.pane_id'
 }
 
 # A stranded worktree: reopen it so the work can be dealt with.
@@ -56,7 +58,7 @@ if [[ "$choice" == "! "* ]]; then
   repo=$(repo_of "$dir")
   pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$(basename "$dir")" --focus \
     | jq -r '.result.root_pane.pane_id')
-  split "$pane" "$dir"
+  split "$pane" "$dir" > /dev/null
   sort_spaces
   exit 0
 fi
@@ -67,7 +69,7 @@ name=$(basename "$choice")
 if [[ "$key" == "ctrl-o" ]] || ! git -C "$repo" rev-parse --git-dir > /dev/null 2>&1; then
   pane=$("$herdr" workspace create --cwd "$repo" --label "$name" --focus \
     | jq -r '.result.root_pane.pane_id')
-  split "$pane" "$repo"
+  split "$pane" "$repo" > /dev/null
   exit 0
 fi
 
@@ -93,6 +95,7 @@ step "Checking out a fresh copy of $name" git -C "$repo" worktree add --quiet --
 
 pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$label" --focus \
   | jq -r '.result.root_pane.pane_id')
-split "$pane" "$dir"
+right=$(split "$pane" "$dir")
+"$herdr" pane run "$right" cc > /dev/null
 sort_spaces
 printf '  ✓ Done\n'
