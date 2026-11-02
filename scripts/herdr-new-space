@@ -35,7 +35,9 @@ picked=$(
     for entry in "${stranded[@]+"${stranded[@]}"}"; do echo "$entry"; done
     for root in "${roots[@]}"; do
       for dir in "$root"/*/; do
-        [[ -d "$dir" ]] && echo "${dir#"$base"/}"
+        # Not `&&`: a root with no projects would fail the pipeline.
+        [[ -d "$dir" ]] || continue
+        echo "${dir#"$base"/}"
       done
     done | sed 's#/$##'
   } | fzf --prompt 'space > ' --reverse --expect ctrl-o \
