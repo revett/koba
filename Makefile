@@ -62,7 +62,12 @@ reload-herdr: install-herdr
 	herdr server reload-config
 	pkill -x herdr-app || true
 	while pgrep -x herdr-app > /dev/null; do sleep 0.1; done
-	open ~/Applications/Herdr.app
+	# LaunchServices can lag the exit and fail with -600 (procNotFound), so
+	# retry for up to 5 seconds.
+	n=0; until open ~/Applications/Herdr.app 2> /dev/null; do \
+		n=$$((n + 1)); [ $$n -lt 10 ] || { echo "failed to open Herdr.app" >&2; exit 1; }; \
+		sleep 0.5; \
+	done
 
 # --- Toolchain + vendored ghostty ------------------------------------------
 
