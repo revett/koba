@@ -48,9 +48,11 @@ key=$(head -1 <<< "$picked")
 choice=$(tail -1 <<< "$picked")
 [[ -n "$choice" ]] || exit 0
 
-# Prints the new right hand pane's id.
+# Prints the new right hand pane's id. Focus stays on the left unless the
+# third argument is --focus.
 split() {
-  "$herdr" pane split "$1" --direction right --cwd "$2" --no-focus | jq -r '.result.pane.pane_id'
+  "$herdr" pane split "$1" --direction right --cwd "$2" "${3:---no-focus}" \
+    | jq -r '.result.pane.pane_id'
 }
 
 # A stranded worktree: reopen it so the work can be dealt with.
@@ -97,7 +99,7 @@ step "Checking out a fresh copy of $name" git -C "$repo" worktree add --quiet --
 
 pane=$("$herdr" worktree open --cwd "$repo" --path "$dir" --label "$label" --focus \
   | jq -r '.result.root_pane.pane_id')
-right=$(split "$pane" "$dir")
+right=$(split "$pane" "$dir" --focus)
 "$herdr" pane run "$right" cc > /dev/null
 sort_spaces
 printf '  ✓ Done\n'
