@@ -72,11 +72,15 @@ fi
 
 branch=$(git -C "$cwd" branch --show-current 2> /dev/null || true)
 ticket=$(ticket_from_branch "$branch")
+# Read from the $status token herdr-pr-status reports ("ARI-2308 #12380"),
+# rather than asking GitHub while the popup waits.
+pr=$("$herdr" workspace get "$id" | jq -r '.result.workspace.tokens.status // ""' \
+  | grep -oE '#[0-9]+' || true)
 in_repo=$(git -C "$cwd" rev-parse --is-inside-work-tree 2> /dev/null || true)
 
 choice=$(
   {
-    [[ -n "$branch" ]] && echo 'GitHub → Open PR'
+    [[ -n "$branch" ]] && echo "GitHub → Open PR${pr:+ ($pr)}"
     [[ -n "$in_repo" ]] && echo 'GitHub → Open Repo'
     [[ -n "$ticket" ]] && echo "Linear → Open Ticket ($ticket)"
     echo 'Workspace → Update Title'
@@ -85,7 +89,7 @@ choice=$(
 ) || exit 0
 
 case "$choice" in
-  'GitHub → Open PR')
+  'GitHub → Open PR'*)
     (cd "$cwd" && gh pr view --web > /dev/null 2>&1) || fail "no PR for $branch"
     ;;
   'GitHub → Open Repo')
